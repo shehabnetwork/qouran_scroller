@@ -1,0 +1,228 @@
+<main class="app-shell" dir="rtl">
+  <header class="top-bar">
+    <button type="button" class="menu-button" (click)="toggleMenu()" aria-label="القائمة">
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+
+    <button type="button" class="brand-button" (click)="openScreen('reader')">
+      <span>Quran Scroll</span>
+      <strong>تلاوة عشوائية</strong>
+    </button>
+
+    <a [href]="source.url" target="_blank" rel="noreferrer">Tanzil {{ source.version }}</a>
+  </header>
+
+  <div class="menu-backdrop" *ngIf="menuOpen()" (click)="closeMenu()"></div>
+
+  <nav class="app-menu" [class.open]="menuOpen()">
+    <div class="menu-head">
+      <div>
+        <span>القائمة</span>
+        <strong *ngIf="user(); else guestName">{{ user()?.name }}</strong>
+        <ng-template #guestName><strong>زائر</strong></ng-template>
+      </div>
+      <button type="button" class="ghost" (click)="closeMenu()">إغلاق</button>
+    </div>
+
+    <button type="button" (click)="openScreen('reader')" [class.active]="currentScreen() === 'reader'">القراءة</button>
+
+    <ng-container *ngIf="user(); else guestMenu">
+      <button type="button" (click)="openScreen('range')" [class.active]="currentScreen() === 'range'">اختيار النطاق</button>
+      <button type="button" (click)="openScreen('save')" [class.active]="currentScreen() === 'save'">حفظ القراءة الحالية</button>
+      <button type="button" (click)="openScreen('history')" [class.active]="currentScreen() === 'history'">السجل</button>
+      <button type="button" class="danger" (click)="logout()">تسجيل الخروج</button>
+    </ng-container>
+
+    <ng-template #guestMenu>
+      <button type="button" (click)="setAuthMode('login')" [class.active]="currentScreen() === 'login'">تسجيل الدخول</button>
+      <button type="button" (click)="setAuthMode('register')" [class.active]="currentScreen() === 'register'">حساب جديد</button>
+    </ng-template>
+  </nav>
+
+  <section class="screen reader-screen" *ngIf="currentScreen() === 'reader'">
+    <header class="reader-header" *ngIf="openingVerse() as opening">
+      <div>
+        <span>البداية</span>
+        <h1>{{ referenceFor(opening) }}</h1>
+      </div>
+      <button type="button" class="secondary" (click)="openRandomVerse()">عشوائي جديد</button>
+    </header>
+
+    <article class="verse-list">
+      <section class="verse-card" *ngFor="let verse of visibleVerses(); trackBy: trackVerse" [class.opening]="verse.index === startIndex()">
+        <div class="verse-meta">
+          <span>{{ surahFor(verse)?.name }}</span>
+          <span>جزء {{ verse.juz }}</span>
+          <span>آية {{ verse.ayah }}</span>
+        </div>
+        <p>{{ verse.text }}</p>
+      </section>
+    </article>
+
+    <button type="button" class="load-more" (click)="loadMore()">المزيد</button>
+  </section>
+
+  <section class="screen narrow-screen" *ngIf="currentScreen() === 'login' || currentScreen() === 'register'">
+    <div class="page-card">
+      <div class="page-title">
+        <span>الحساب</span>
+        <h1>{{ currentScreen() === 'login' ? 'تسجيل الدخول' : 'حساب جديد' }}</h1>
+      </div>
+
+      <form (ngSubmit)="submitAuth()" class="stack-form">
+        <label *ngIf="currentScreen() === 'register'">
+          الاسم
+          <input name="name" [(ngModel)]="authForm.name" autocomplete="name" />
+        </label>
+        <label>
+          البريد
+          <input name="email" type="email" [(ngModel)]="authForm.email" autocomplete="email" required />
+        </label>
+        <label>
+          كلمة المرور
+          <input name="password" type="password" [(ngModel)]="authForm.password" autocomplete="current-password" required />
+        </label>
+        <button type="submit" class="primary" [disabled]="busy()">متابعة</button>
+      </form>
+
+      <div class="auth-divider"><span>أو</span></div>
+
+      <div class="google-auth">
+        <button type="button" class="secondary google-redirect-button" *ngIf="googleRedirectEnabled(); else googlePopupButton" (click)="startGoogleRedirect()">
+          تسجيل الدخول باستخدام Google
+        </button>
+        <ng-template #googlePopupButton>
+          <div id="google-signin-button" *ngIf="googleClientId(); else googleSetup"></div>
+        </ng-template>
+        <ng-template #googleSetup>
+          <p class="setup-note">أضف Google Client ID في إعدادات الخادم لتفعيل تسجيل الدخول عبر Google.</p>
+        </ng-template>
+      </div>
+
+      <button type="button" class="link-button" *ngIf="currentScreen() === 'login'" (click)="setAuthMode('register')">إنشاء حساب جديد</button>
+      <button type="button" class="link-button" *ngIf="currentScreen() === 'register'" (click)="setAuthMode('login')">لدي حساب بالفعل</button>
+      <p class="message" *ngIf="authMessage()">{{ authMessage() }}</p>
+      <p class="message" *ngIf="googleMessage()">{{ googleMessage() }}</p>
+    </div>
+  </section>
+
+  <section class="screen narrow-screen" *ngIf="currentScreen() === 'range'">
+    <div class="page-card">
+      <div class="page-title">
+        <span>النطاق</span>
+        <h1>اختيار مصدر الآية</h1>
+      </div>
+
+      <div class="scope-grid">
+        <label class="radio-option">
+          <input type="radio" name="mode" [ngModel]="scope().mode" (ngModelChange)="updateScope('mode', $event)" value="all" />
+          كامل المصحف
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="mode" [ngModel]="scope().mode" (ngModelChange)="updateScope('mode', $event)" value="juz" />
+          من جزء إلى جزء
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="mode" [ngModel]="scope().mode" (ngModelChange)="updateScope('mode', $event)" value="surah" />
+          من سورة إلى سورة
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="mode" [ngModel]="scope().mode" (ngModelChange)="updateScope('mode', $event)" value="ayah" />
+          آية محددة
+        </label>
+      </div>
+
+      <div class="range-row" *ngIf="scope().mode === 'juz'">
+        <label>
+          من
+          <select [ngModel]="scope().fromJuz" (ngModelChange)="updateScope('fromJuz', +$event)">
+            <option *ngFor="let juz of juzs" [value]="juz">{{ juz }}</option>
+          </select>
+        </label>
+        <label>
+          إلى
+          <select [ngModel]="scope().toJuz" (ngModelChange)="updateScope('toJuz', +$event)">
+            <option *ngFor="let juz of juzs" [value]="juz">{{ juz }}</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="range-row" *ngIf="scope().mode === 'surah'">
+        <label>
+          من
+          <select [ngModel]="scope().fromSurah" (ngModelChange)="updateScope('fromSurah', +$event)">
+            <option *ngFor="let surah of surahs" [value]="surah.number">{{ surah.number }}. {{ surah.name }}</option>
+          </select>
+        </label>
+        <label>
+          إلى
+          <select [ngModel]="scope().toSurah" (ngModelChange)="updateScope('toSurah', +$event)">
+            <option *ngFor="let surah of surahs" [value]="surah.number">{{ surah.number }}. {{ surah.name }}</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="range-row" *ngIf="scope().mode === 'ayah'">
+        <label>
+          السورة
+          <select [ngModel]="scope().fromSurah" (ngModelChange)="updateScope('fromSurah', +$event)">
+            <option *ngFor="let surah of surahs" [value]="surah.number">{{ surah.number }}. {{ surah.name }}</option>
+          </select>
+        </label>
+        <label>
+          الآية
+          <input type="number" min="1" [max]="maxAyahForSelectedSurah()" [ngModel]="scope().ayah" (ngModelChange)="updateScope('ayah', +$event)" />
+        </label>
+      </div>
+
+      <button type="button" class="primary" (click)="openRandomVerse(true)">افتح آية من هذا النطاق</button>
+    </div>
+  </section>
+
+  <section class="screen narrow-screen" *ngIf="currentScreen() === 'save'">
+    <div class="page-card">
+      <div class="page-title">
+        <span>حفظ</span>
+        <h1>حفظ القراءة الحالية</h1>
+      </div>
+
+      <div class="summary-row">
+        <span>من</span>
+        <strong>{{ referenceFor(openingVerse()) }}</strong>
+      </div>
+      <div class="summary-row">
+        <span>إلى</span>
+        <strong>{{ referenceFor(latestVerse()) }}</strong>
+      </div>
+
+      <label>
+        اسم الجلسة
+        <input [(ngModel)]="historyName" placeholder="مثال: ورد الفجر" />
+      </label>
+
+      <button type="button" class="primary" (click)="saveCurrentReading()">حفظ</button>
+      <p class="message" *ngIf="saveMessage()">{{ saveMessage() }}</p>
+    </div>
+  </section>
+
+  <section class="screen narrow-screen" *ngIf="currentScreen() === 'history'">
+    <div class="page-card">
+      <div class="page-title">
+        <span>السجل</span>
+        <h1>قراءات محفوظة</h1>
+      </div>
+
+      <p class="empty-state" *ngIf="!histories().length">لا توجد قراءات محفوظة بعد.</p>
+
+      <div class="history-list" *ngIf="histories().length">
+        <button type="button" class="history-item" *ngFor="let history of histories()" (click)="resumeHistory(history)">
+          <span>{{ history.name }}</span>
+          <small>{{ verses[history.startIndex].surah }}:{{ verses[history.startIndex].ayah }} - {{ verses[history.endIndex].surah }}:{{ verses[history.endIndex].ayah }}</small>
+          <span class="delete" (click)="deleteHistory(history, $event)">حذف</span>
+        </button>
+      </div>
+    </div>
+  </section>
+</main>
