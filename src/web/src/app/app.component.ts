@@ -6,6 +6,7 @@ import { JUZ_BOUNDARIES, QURAN_SOURCE, QURAN_VERSES, QuranVerse, SURAHS, SurahIn
 
 type ScopeMode = 'all' | 'juz' | 'surah' | 'ayah';
 type AppScreen = 'reader' | 'login' | 'register' | 'range' | 'save' | 'history';
+type ReaderPanel = 'jump' | 'range' | null;
 
 interface ScopePreference {
   mode: ScopeMode;
@@ -66,6 +67,15 @@ interface ReadingHistory {
   createdAt: string;
 }
 
+interface VersePanel {
+  id: string;
+  surah: SurahInfo | undefined;
+  juz: number;
+  quarter: number;
+  startsAtOpening: boolean;
+  verses: QuranVerse[];
+}
+
 const DEFAULT_SCOPE: ScopePreference = {
   mode: 'all',
   fromJuz: 1,
@@ -85,7 +95,7 @@ const DEFAULT_SCOPE: ScopePreference = {
 export class AppComponent implements OnInit {
   private readonly http = inject(HttpClient);
   private readonly apiBase = 'http://localhost:5037/api';
-  private readonly pageSize = 24;
+  private readonly pageSize = 5;
 
   protected readonly source = QURAN_SOURCE;
   protected readonly surahs = SURAHS;
@@ -99,12 +109,16 @@ export class AppComponent implements OnInit {
   protected readonly scope = signal<ScopePreference>({ ...DEFAULT_SCOPE });
   protected readonly startIndex = signal(0);
   protected readonly visibleCount = signal(this.pageSize);
+  protected readonly selectedVerseIndex = signal<number | null>(null);
+  protected readonly selectedRangeStartIndex = signal(0);
+  protected readonly selectedRangeEndIndex = signal(this.pageSize - 1);
   protected readonly busy = signal(false);
   protected readonly authMessage = signal('');
   protected readonly saveMessage = signal('');
   protected readonly googleClientId = signal('');
   protected readonly googleRedirectEnabled = signal(false);
   protected readonly googleMessage = signal('');
+  protected readonly readerPanel = signal<ReaderPanel>(null);
 
   protected authForm = {
     name: '',
@@ -112,16 +126,54 @@ export class AppComponent implements OnInit {
     password: '',
   };
 
+  protected jumpForm = {
+    surah: 1,
+    ayah: 1,
+  };
+
   protected historyName = '';
   private googleInitialized = false;
+  private rangeEndPinned = false;
+  private sessionStarted = false;
+  private loadingPrevious = false;
+  private readerScrollY = 0;
 
   protected readonly visibleVerses = computed(() => {
     const start = this.startIndex();
     return QURAN_VERSES.slice(start, Math.min(start + this.visibleCount(), QURAN_VERSES.length));
   });
 
+  protected readonly versePanels = computed<VersePanel[]>(() => {
+    const panels: VersePanel[] = [];
+
+    for (const verse of this.visibleVerses()) {
+      const previousPanel = panels.at(-1);
+      const previousVerse = previousPanel?.verses.at(-1);
+      const startsPanel =
+        !previousPanel || !previousVerse || previousVerse.surah !== verse.surah || previousVerse.quarter !== verse.quarter;
+
+      if (startsPanel) {
+        panels.push({
+          id: `${verse.surah}-${verse.ayah}-${verse.quarter}`,
+          surah: this.findSurah(verse.surah),
+          juz: verse.juz,
+          quarter: verse.quarter,
+          startsAtOpening: verse.index === this.startIndex(),
+          verses: [verse],
+        });
+        continue;
+      }
+
+      previousPanel.verses.push(verse);
+    }
+
+    return panels;
+  });
+
   protected readonly openingVerse = computed(() => QURAN_VERSES[this.startIndex()]);
   protected readonly latestVerse = computed(() => this.visibleVerses().at(-1) ?? this.openingVerse());
+  protected readonly rangeStartVerse = computed(() => QURAN_VERSES[this.selectedRangeStartIndex()]);
+  protected readonly rangeEndVerse = computed(() => QURAN_VERSES[this.selectedRangeEndIndex()]);
 
   protected readonly selectedSurah = computed(() => this.findSurah(this.scope().fromSurah));
   protected readonly maxAyahForSelectedSurah = computed(() => this.selectedSurah()?.ayahCount ?? 1);
@@ -145,6 +197,15 @@ export class AppComponent implements OnInit {
 
   @HostListener('window:scroll')
   protected onScroll(): void {
+    if (this.currentScreen() !== 'reader') {
+      return;
+    }
+
+    const nearTop = window.scrollY < 300;
+    if (nearTop) {
+      this.loadPrevious(true);
+    }
+
     const nearBottom = window.innerHeight + window.scrollY > document.body.offsetHeight - 900;
     if (nearBottom) {
       this.loadMore();
@@ -163,7 +224,7 @@ export class AppComponent implements OnInit {
         this.authForm.password = '';
         this.authMessage.set('تم تسجيل الدخول.');
         this.closeMenu();
-        this.currentScreen.set('reader');
+        this.showReader();
         this.loadPreferencesAndHistory();
       },
       error: () => {
@@ -185,7 +246,7 @@ export class AppComponent implements OnInit {
         this.authForm.password = '';
         this.googleMessage.set('تم تسجيل الدخول بحساب Google.');
         this.closeMenu();
-        this.currentScreen.set('reader');
+        this.showReader();
         this.loadPreferencesAndHistory();
       },
       error: () => {
@@ -239,44 +300,160 @@ export class AppComponent implements OnInit {
   }
 
   protected loadMore(): void {
+    const oldLatest = this.latestVerse();
     const remaining = QURAN_VERSES.length - this.startIndex() - this.visibleCount();
     if (remaining <= 0) {
       return;
     }
 
-    this.visibleCount.set(this.visibleCount() + this.pageSize);
+    this.visibleCount.set(this.visibleCount() + Math.min(this.pageSize, remaining));
+    if (!this.rangeEndPinned && this.selectedRangeEndIndex() === oldLatest.index) {
+      this.selectedRangeEndIndex.set(this.latestVerse().index);
+    }
+  }
+
+  protected loadPrevious(preserveScroll = false): void {
+    const currentStart = this.startIndex();
+    if (currentStart <= 0 || this.loadingPrevious) {
+      return;
+    }
+
+    this.loadingPrevious = true;
+    const added = Math.min(this.pageSize, currentStart);
+    const oldHeight = document.body.scrollHeight;
+
+    this.startIndex.set(currentStart - added);
+    this.visibleCount.set(this.visibleCount() + added);
+
+    queueMicrotask(() => {
+      if (preserveScroll) {
+        window.scrollTo({ top: window.scrollY + document.body.scrollHeight - oldHeight, behavior: 'auto' });
+      }
+      this.loadingPrevious = false;
+    });
+  }
+
+  protected updateJumpSurah(surah: number): void {
+    this.jumpForm.surah = this.clamp(Number(surah) || 1, 1, 114);
+    this.jumpForm.ayah = this.clamp(this.jumpForm.ayah, 1, this.maxAyahForJumpSurah());
+  }
+
+  protected updateJumpAyah(ayah: number): void {
+    this.jumpForm.ayah = this.clamp(Number(ayah) || 1, 1, this.maxAyahForJumpSurah());
+  }
+
+  protected maxAyahForJumpSurah(): number {
+    return this.findSurah(this.jumpForm.surah)?.ayahCount ?? 1;
+  }
+
+  protected goToJumpVerse(): void {
+    this.openAt(this.indexForSurahAyah(this.jumpForm.surah, this.jumpForm.ayah));
+    this.currentScreen.set('reader');
+    this.readerPanel.set(null);
+    this.closeMenu();
+  }
+
+  protected selectVerse(verse: QuranVerse): void {
+    this.selectedVerseIndex.set(verse.index);
+  }
+
+  protected setRangeStartHere(verse: QuranVerse, event?: MouseEvent): void {
+    event?.stopPropagation();
+    this.selectedRangeStartIndex.set(verse.index);
+    if (this.selectedRangeEndIndex() < verse.index) {
+      this.selectedRangeEndIndex.set(verse.index);
+      this.rangeEndPinned = true;
+    }
+    this.selectedVerseIndex.set(verse.index);
+  }
+
+  protected setRangeEndHere(verse: QuranVerse, event?: MouseEvent): void {
+    event?.stopPropagation();
+    if (verse.index < this.selectedRangeStartIndex()) {
+      this.selectedRangeStartIndex.set(verse.index);
+    }
+    this.selectedRangeEndIndex.set(verse.index);
+    this.rangeEndPinned = true;
+    this.selectedVerseIndex.set(verse.index);
+  }
+
+  protected isRangeStart(verse: QuranVerse): boolean {
+    return verse.index === this.selectedRangeStartIndex();
+  }
+
+  protected isRangeEnd(verse: QuranVerse): boolean {
+    return verse.index === this.selectedRangeEndIndex();
+  }
+
+  protected isInsideSelectedRange(verse: QuranVerse): boolean {
+    return verse.index >= this.selectedRangeStartIndex() && verse.index <= this.selectedRangeEndIndex();
+  }
+
+  protected rangeBoundarySurah(boundary: 'start' | 'end'): number {
+    return this.rangeBoundaryVerse(boundary)?.surah ?? 1;
+  }
+
+  protected rangeBoundaryAyah(boundary: 'start' | 'end'): number {
+    return this.rangeBoundaryVerse(boundary)?.ayah ?? 1;
+  }
+
+  protected maxAyahForBoundary(boundary: 'start' | 'end'): number {
+    return this.findSurah(this.rangeBoundarySurah(boundary))?.ayahCount ?? 1;
+  }
+
+  protected updateRangeBoundary(boundary: 'start' | 'end', field: 'surah' | 'ayah', value: number): void {
+    const current = this.rangeBoundaryVerse(boundary);
+    const surah = field === 'surah' ? Number(value) : current?.surah ?? 1;
+    const ayah = field === 'ayah' ? Number(value) : current?.ayah ?? 1;
+    const nextIndex = this.indexForSurahAyah(surah, ayah);
+
+    if (boundary === 'start') {
+      this.selectedRangeStartIndex.set(nextIndex);
+      if (this.selectedRangeEndIndex() < nextIndex) {
+        this.selectedRangeEndIndex.set(nextIndex);
+      }
+      return;
+    }
+
+    if (nextIndex < this.selectedRangeStartIndex()) {
+      this.selectedRangeStartIndex.set(nextIndex);
+    }
+    this.selectedRangeEndIndex.set(nextIndex);
+    this.rangeEndPinned = true;
   }
 
   protected saveCurrentReading(): void {
     if (!this.user()) {
-      this.saveMessage.set('سجل الدخول أولا لحفظ القراءة.');
+      this.saveMessage.set('سجل الدخول أولا لحفظ الجلسة.');
       return;
     }
 
-    const opening = this.openingVerse();
-    const latest = this.latestVerse();
+    const opening = this.rangeStartVerse();
+    const latest = this.rangeEndVerse();
     const fallbackName = `${this.referenceFor(opening)} إلى ${this.referenceFor(latest)}`;
     const name = this.historyName.trim() || fallbackName;
 
     this.http
       .post<ReadingHistory>(
         `${this.apiBase}/readings`,
-        { name, startIndex: this.startIndex(), endIndex: latest.index },
+        { name, startIndex: opening.index, endIndex: latest.index },
         { headers: this.authHeaders() },
       )
       .subscribe({
         next: (history) => {
           this.histories.set([history, ...this.histories()]);
           this.historyName = '';
-          this.saveMessage.set('تم حفظ جلسة القراءة.');
-          this.currentScreen.set('reader');
+          this.saveMessage.set('تم حفظ الجلسة.');
+          this.readerPanel.set(null);
+          this.showReader();
         },
-        error: () => this.saveMessage.set('تعذر حفظ القراءة الآن.'),
+        error: () => this.saveMessage.set('تعذر حفظ الجلسة الآن.'),
       });
   }
 
   protected resumeHistory(history: ReadingHistory): void {
     this.openAt(history.startIndex, history.endIndex - history.startIndex + 1);
+    this.rangeEndPinned = true;
     this.currentScreen.set('reader');
     this.closeMenu();
   }
@@ -288,7 +465,11 @@ export class AppComponent implements OnInit {
     });
   }
 
-  protected referenceFor(verse: QuranVerse): string {
+  protected referenceFor(verse: QuranVerse | undefined): string {
+    if (!verse) {
+      return '';
+    }
+
     const surah = this.findSurah(verse.surah);
     return `${surah?.name ?? verse.surah} ${verse.ayah}`;
   }
@@ -301,7 +482,14 @@ export class AppComponent implements OnInit {
     return verse.index;
   }
 
+  protected trackPanel(_: number, panel: VersePanel): string {
+    return panel.id;
+  }
+
   protected setAuthMode(mode: 'login' | 'register'): void {
+    if (this.currentScreen() === 'reader') {
+      this.readerScrollY = window.scrollY;
+    }
     this.authMode.set(mode);
     this.currentScreen.set(mode);
     this.authMessage.set('');
@@ -315,9 +503,27 @@ export class AppComponent implements OnInit {
       return;
     }
 
+    if (this.currentScreen() === 'reader' && screen !== 'reader') {
+      this.readerScrollY = window.scrollY;
+    }
+
     this.currentScreen.set(screen);
     this.closeMenu();
+    if (screen === 'reader') {
+      this.restoreReaderScroll();
+    } else {
+      queueMicrotask(() => window.scrollTo({ top: 0, behavior: 'auto' }));
+    }
     this.scheduleGoogleButtonRender();
+  }
+
+  protected backToReader(): void {
+    this.showReader();
+    this.closeMenu();
+  }
+
+  protected toggleReaderPanel(panel: Exclude<ReaderPanel, null>): void {
+    this.readerPanel.set(this.readerPanel() === panel ? null : panel);
   }
 
   protected toggleMenu(): void {
@@ -447,9 +653,15 @@ export class AppComponent implements OnInit {
     this.http.get<ScopePreference>(`${this.apiBase}/preferences`, { headers: this.authHeaders() }).subscribe({
       next: (preference) => {
         this.scope.set(this.normalizeScope(preference));
-        this.openRandomVerse();
+        if (!this.sessionStarted) {
+          this.openRandomVerse();
+        }
       },
-      error: () => this.openRandomVerse(),
+      error: () => {
+        if (!this.sessionStarted) {
+          this.openRandomVerse();
+        }
+      },
     });
 
     this.http.get<ReadingHistory[]>(`${this.apiBase}/readings`, { headers: this.authHeaders() }).subscribe({
@@ -466,9 +678,51 @@ export class AppComponent implements OnInit {
   }
 
   private openAt(index: number, count = this.pageSize): void {
-    this.startIndex.set(Math.max(0, Math.min(index, QURAN_VERSES.length - 1)));
-    this.visibleCount.set(Math.max(this.pageSize, count));
+    const normalizedIndex = Math.max(0, Math.min(index, QURAN_VERSES.length - 1));
+    const normalizedCount = Math.max(this.pageSize, count);
+    const normalizedEndIndex = Math.min(normalizedIndex + normalizedCount - 1, QURAN_VERSES.length - 1);
+
+    this.sessionStarted = true;
+    this.readerScrollY = 0;
+    this.startIndex.set(normalizedIndex);
+    this.visibleCount.set(normalizedCount);
+    this.selectedRangeStartIndex.set(normalizedIndex);
+    this.selectedRangeEndIndex.set(normalizedEndIndex);
+    this.selectedVerseIndex.set(null);
+    this.rangeEndPinned = false;
+    this.syncJumpFormToVerse(QURAN_VERSES[normalizedIndex]);
     queueMicrotask(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
+  }
+
+  private showReader(): void {
+    this.currentScreen.set('reader');
+    this.restoreReaderScroll();
+  }
+
+  private restoreReaderScroll(): void {
+    queueMicrotask(() => {
+      const rangeStart = document.querySelector('.range-start');
+      if (rangeStart) {
+        rangeStart.scrollIntoView({ behavior: 'auto', block: 'start' });
+      } else {
+        window.scrollTo({ top: this.readerScrollY, behavior: 'auto' });
+      }
+    });
+  }
+
+  private rangeBoundaryVerse(boundary: 'start' | 'end'): QuranVerse | undefined {
+    return boundary === 'start' ? this.rangeStartVerse() : this.rangeEndVerse();
+  }
+
+  private indexForSurahAyah(surahNumber: number, ayahNumber: number): number {
+    const surah = this.findSurah(this.clamp(Number(surahNumber) || 1, 1, 114))!;
+    const ayah = this.clamp(Number(ayahNumber) || 1, 1, surah.ayahCount);
+    return surah.startIndex + ayah - 1;
+  }
+
+  private syncJumpFormToVerse(verse: QuranVerse): void {
+    this.jumpForm.surah = verse.surah;
+    this.jumpForm.ayah = verse.ayah;
   }
 
   private randomIndexForScope(scope: ScopePreference): number {

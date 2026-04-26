@@ -36,6 +36,15 @@ const juzStarts = metadataXml
     ayah: Number(attr(line, 'aya')),
   }));
 
+const quarterStarts = metadataXml
+  .split(/\r?\n/)
+  .filter((line) => line.includes('<quarter '))
+  .map((line) => ({
+    quarter: Number(attr(line, 'index')),
+    surah: Number(attr(line, 'sura')),
+    ayah: Number(attr(line, 'aya')),
+  }));
+
 const globalIndexByKey = new Map();
 const verses = quranText
   .split(/\r?\n/)
@@ -50,6 +59,7 @@ const verses = quranText
       surah,
       ayah,
       juz: 1,
+      quarter: 1,
       text: textParts.join('|'),
     };
   });
@@ -80,6 +90,32 @@ for (const boundary of juzBoundaries) {
   }
 }
 
+const quarterBoundaries = quarterStarts.map((start, index) => {
+  const fromIndex = globalIndexByKey.get(`${start.surah}:${start.ayah}`);
+  const nextStart = quarterStarts[index + 1];
+  const toIndex = nextStart
+    ? (globalIndexByKey.get(`${nextStart.surah}:${nextStart.ayah}`) ?? verses.length) - 1
+    : verses.length - 1;
+
+  return {
+    quarter: start.quarter,
+    fromIndex,
+    toIndex,
+    fromSurah: start.surah,
+    fromAyah: start.ayah,
+  };
+});
+
+for (const boundary of quarterBoundaries) {
+  if (boundary.fromIndex === undefined) {
+    throw new Error(`Missing quarter boundary for ${boundary.quarter}`);
+  }
+
+  for (let index = boundary.fromIndex; index <= boundary.toIndex; index += 1) {
+    verses[index].quarter = boundary.quarter;
+  }
+}
+
 if (verses.length !== 6236) {
   throw new Error(`Expected 6236 verses, found ${verses.length}`);
 }
@@ -95,6 +131,7 @@ export interface QuranVerse {
   surah: number;
   ayah: number;
   juz: number;
+  quarter: number;
   text: string;
 }
 
@@ -116,6 +153,14 @@ export interface JuzBoundary {
   fromAyah: number;
 }
 
+export interface QuarterBoundary {
+  quarter: number;
+  fromIndex: number;
+  toIndex: number;
+  fromSurah: number;
+  fromAyah: number;
+}
+
 export const QURAN_SOURCE = {
   name: 'Tanzil Project Uthmani Quran Text',
   version: '1.1',
@@ -126,6 +171,8 @@ export const QURAN_SOURCE = {
 export const SURAHS: SurahInfo[] = ${JSON.stringify(surahs, null, 2)};
 
 export const JUZ_BOUNDARIES: JuzBoundary[] = ${JSON.stringify(juzBoundaries, null, 2)};
+
+export const QUARTER_BOUNDARIES: QuarterBoundary[] = ${JSON.stringify(quarterBoundaries, null, 2)};
 
 export const QURAN_VERSES: QuranVerse[] = ${JSON.stringify(verses, null, 2)};
 `;

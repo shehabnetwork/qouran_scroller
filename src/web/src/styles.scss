@@ -1,3 +1,9 @@
+@import "bootstrap-icons/font/bootstrap-icons.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 * {
   box-sizing: border-box;
 }
@@ -8,6 +14,490 @@ html {
 
 body {
   margin: 0;
-  font-family: Inter, "Segoe UI", Tahoma, Arial, sans-serif;
-  background: #f7f8f1;
+  font-family: "Reem Kufi", Tahoma, Arial, sans-serif;
+  background: #f8fafc;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer components {
+  app-root {
+    @apply block min-h-screen text-slate-900;
+    background:
+      linear-gradient(135deg, rgba(248, 250, 252, 0.98), rgba(236, 253, 245, 0.9) 45%, rgba(255, 247, 237, 0.9)),
+      radial-gradient(circle at 12% 8%, rgba(20, 184, 166, 0.18), transparent 30%),
+      radial-gradient(circle at 90% 12%, rgba(244, 114, 182, 0.1), transparent 26%);
+  }
+
+  .app-shell {
+    @apply min-h-screen pb-10 pt-[76px] font-menu;
+  }
+
+  .top-bar {
+    @apply fixed inset-x-0 top-0 z-10 grid min-h-[76px] grid-cols-[48px_1fr_auto] items-center gap-3 border-b border-slate-200/80 bg-white/85 px-6 py-3 shadow-sm backdrop-blur-xl;
+  }
+
+  .menu-button,
+  .icon-button {
+    @apply grid min-h-11 w-11 place-items-center rounded-2xl border border-slate-200 bg-white text-xl text-teal-900 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md;
+  }
+
+  .brand-button {
+    @apply inline-grid min-h-11 grid-cols-[40px_1fr] items-center justify-self-start border-0 bg-transparent p-0 text-right text-slate-900;
+  }
+
+  .brand-button > i {
+    @apply grid size-10 place-items-center rounded-2xl bg-teal-700 text-lg text-white shadow-md shadow-teal-700/20;
+  }
+
+  .brand-button > span {
+    @apply grid gap-0.5 pr-3;
+  }
+
+  .brand-button small {
+    @apply text-xs font-medium uppercase tracking-normal text-slate-500;
+  }
+
+  .brand-button strong {
+    @apply text-lg font-bold leading-tight;
+  }
+
+  .source-link {
+    @apply inline-flex items-center gap-2 rounded-full border border-teal-100 bg-teal-50 px-3 py-2 text-xs font-semibold text-teal-800 no-underline transition hover:bg-teal-100;
+  }
+
+  .menu-backdrop {
+    @apply fixed inset-0 z-[18] bg-slate-950/30 backdrop-blur-[2px];
+  }
+
+  .app-menu {
+    @apply fixed right-0 top-0 z-20 grid h-dvh w-[min(360px,90vw)] translate-x-[105%] content-start gap-2 border-l border-slate-200 bg-white p-5 shadow-drawer transition-transform duration-200;
+  }
+
+  .app-menu.open {
+    @apply translate-x-0;
+  }
+
+  .app-menu > button:not(.ghost) {
+    @apply inline-flex min-h-14 w-full items-center justify-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-right text-base font-semibold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md;
+  }
+
+  .app-menu > button:not(.ghost) i {
+    @apply grid size-9 place-items-center rounded-xl bg-white text-lg text-teal-800 shadow-sm;
+  }
+
+  .app-menu > button:not(.ghost).active {
+    @apply border-teal-700 bg-teal-700 text-white shadow-md shadow-teal-700/20;
+  }
+
+  .app-menu > button:not(.ghost).active i {
+    @apply bg-white/15 text-white shadow-none;
+  }
+
+  .app-menu > button:not(.ghost).danger {
+    @apply border-rose-100 bg-rose-50 text-rose-700;
+  }
+
+  .app-menu > button:not(.ghost).danger i {
+    @apply text-rose-700;
+  }
+
+  .menu-head {
+    @apply mb-4 flex items-center justify-between gap-3 rounded-3xl bg-slate-50 p-4;
+  }
+
+  .menu-head div {
+    @apply grid gap-1;
+  }
+
+  .menu-head span {
+    @apply text-xs font-semibold text-slate-500;
+  }
+
+  .menu-head strong {
+    @apply text-lg font-bold text-slate-950;
+  }
+
+  .screen {
+    @apply mx-auto w-[min(920px,calc(100%_-_36px))] py-7;
+  }
+
+  .narrow-screen {
+    @apply w-[min(620px,calc(100%_-_36px))] pt-10;
+  }
+
+  .page-card {
+    @apply grid gap-5 rounded-3xl border border-white/80 bg-white/85 p-6 shadow-soft backdrop-blur-xl;
+  }
+
+  .page-title {
+    @apply grid gap-1;
+  }
+
+  .page-title span {
+    @apply text-xs font-semibold text-teal-700;
+  }
+
+  .page-title h1 {
+    @apply m-0 text-2xl font-bold text-slate-950;
+  }
+
+  .stack-form,
+  .range-row,
+  .scope-grid,
+  .history-list {
+    @apply grid gap-3;
+  }
+
+  .range-row {
+    @apply grid-cols-2;
+  }
+
+  label {
+    @apply grid gap-2 text-sm font-semibold text-slate-600;
+  }
+
+  input,
+  select {
+    @apply min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-600 focus:ring-4 focus:ring-teal-600/10;
+    font: inherit;
+  }
+
+  .radio-option {
+    @apply grid min-h-14 grid-cols-[auto_36px_1fr] items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700 shadow-sm transition hover:border-teal-200 hover:shadow-md;
+  }
+
+  .radio-option input {
+    @apply size-4 min-h-0 accent-teal-700;
+  }
+
+  .radio-option i {
+    @apply grid size-9 place-items-center rounded-xl bg-teal-50 text-lg text-teal-800;
+  }
+
+  button {
+    @apply inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-2xl border border-transparent px-4 py-2 text-base font-bold transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-60;
+    font: inherit;
+  }
+
+  .primary {
+    @apply bg-teal-700 text-white shadow-lg shadow-teal-700/20 hover:bg-teal-800;
+  }
+
+  .secondary {
+    @apply border border-teal-100 bg-teal-50 text-teal-900 shadow-sm hover:bg-teal-100;
+  }
+
+  .ghost,
+  .link-button {
+    @apply border border-slate-200 bg-white text-slate-700;
+  }
+
+  .link-button {
+    @apply min-h-9 justify-self-start border-0 bg-transparent px-0 text-teal-700 shadow-none hover:text-teal-900;
+  }
+
+  .message,
+  .empty-state,
+  .setup-note {
+    @apply m-0 rounded-2xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800;
+  }
+
+  .empty-state {
+    @apply bg-slate-50 text-slate-500;
+  }
+
+  .auth-divider {
+    @apply flex items-center gap-3 text-sm font-semibold text-slate-400;
+  }
+
+  .auth-divider::before,
+  .auth-divider::after {
+    @apply h-px flex-1 bg-slate-200;
+    content: "";
+  }
+
+  .google-auth {
+    @apply grid min-h-12 justify-items-center;
+  }
+
+  .google-redirect-button {
+    @apply w-[min(320px,100%)] bg-white;
+  }
+
+  .reader-header {
+    @apply sticky top-[76px] z-[8] flex items-center justify-between gap-3 bg-gradient-to-b from-slate-50/95 via-slate-50/85 to-transparent py-3 backdrop-blur-sm;
+  }
+
+  .reader-header span {
+    @apply text-xs font-semibold text-teal-700;
+  }
+
+  .reader-header h1 {
+    @apply m-0 text-2xl font-bold text-slate-950;
+  }
+
+  .reader-title {
+    @apply min-w-0;
+  }
+
+  .reader-actions {
+    @apply flex flex-wrap items-center justify-end gap-2;
+  }
+
+  .reader-actions .secondary {
+    @apply min-h-10 rounded-xl px-3 text-sm;
+  }
+
+  .reader-actions .secondary.active {
+    @apply border-teal-700 bg-teal-700 text-white shadow-md shadow-teal-700/20;
+  }
+
+  .reader-panel {
+    @apply absolute left-0 right-0 top-[calc(100%_-_2px)] z-10 grid gap-3 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-xl shadow-slate-950/10 backdrop-blur-xl;
+    max-height: min(72vh, 520px);
+    overflow: auto;
+  }
+
+  .jump-panel {
+    @apply grid-cols-[minmax(180px,1fr)_110px_auto] items-end;
+  }
+
+  .reader-panel label {
+    @apply gap-1 text-xs;
+  }
+
+  .reader-panel input,
+  .reader-panel select {
+    @apply min-h-10 rounded-xl px-3 text-sm;
+  }
+
+  .reader-panel button {
+    @apply min-h-10 rounded-xl px-3 text-sm;
+  }
+
+  .range-panel-summary {
+    @apply flex items-center justify-between gap-3 rounded-xl bg-teal-50 px-3 py-2;
+  }
+
+  .range-panel-summary span {
+    @apply text-xs font-semibold text-teal-700;
+  }
+
+  .range-panel-summary strong {
+    @apply text-base font-bold text-slate-950;
+  }
+
+  .range-edit-grid.compact {
+    @apply grid-cols-[minmax(150px,1fr)_96px_minmax(150px,1fr)_96px] gap-2;
+  }
+
+  .save-inline-row {
+    @apply grid grid-cols-[1fr_auto] items-end gap-2;
+  }
+
+  .verse-list {
+    @apply grid gap-4;
+  }
+
+  .verse-panel {
+    @apply rounded-3xl border border-white/80 bg-white/90 p-6 shadow-soft backdrop-blur-xl;
+  }
+
+  .verse-panel:nth-child(even) {
+    @apply bg-emerald-50/80;
+  }
+
+  .verse-panel.opening {
+    @apply border-teal-300 shadow-lg shadow-teal-700/10;
+  }
+
+  .quran-flow {
+    @apply m-0 mt-4 font-quran text-[2.55rem] leading-[2.18] text-slate-950;
+    text-align: justify;
+  }
+
+  .verse-text {
+    @apply inline;
+  }
+
+  .verse-unit {
+    @apply relative rounded-xl px-1 py-0.5 outline-none transition text-slate-400;
+  }
+
+  .verse-unit:hover,
+  .verse-unit.active {
+    @apply bg-teal-50/80;
+  }
+
+  .verse-unit.in-selected-range,
+  .verse-unit.range-start,
+  .verse-unit.range-end {
+    @apply text-slate-950;
+  }
+
+  .verse-actions {
+    @apply mx-2 inline-flex translate-y-[-0.35em] items-center gap-1 rounded-full border border-teal-100 bg-white px-2 py-1 align-middle font-menu shadow-lg shadow-slate-950/10;
+  }
+
+  .verse-actions button {
+    @apply min-h-8 rounded-full px-2 py-1 text-xs font-bold;
+  }
+
+  .verse-actions button:first-child {
+    @apply bg-teal-700 text-white;
+  }
+
+  .verse-actions button:last-child {
+    @apply bg-amber-100 text-amber-900;
+  }
+
+  .ayah-marker {
+    @apply mx-2 inline-grid size-8 translate-y-[-0.12em] place-items-center rounded-full border border-teal-900 bg-teal-800 align-middle font-menu text-sm font-bold leading-none text-white shadow-sm shadow-teal-950/20;
+  }
+
+  .verse-meta {
+    @apply grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl border border-slate-200/70 bg-white/70 px-4 py-3;
+  }
+
+  .side-badge {
+    @apply rounded-full bg-slate-100 px-3 py-1 text-center text-xs font-semibold text-slate-600;
+  }
+
+  .side-badge:first-child {
+    @apply justify-self-start;
+  }
+
+  .side-badge:last-child {
+    @apply justify-self-end;
+  }
+
+  .surah-title {
+    @apply justify-self-center text-center font-menu text-2xl font-bold leading-tight text-teal-950;
+  }
+
+  .load-more {
+    @apply mx-auto mt-7 flex w-[min(260px,100%)] border border-teal-100 bg-white/90 text-teal-900 shadow-sm hover:bg-teal-50;
+  }
+
+  .load-previous {
+    @apply mx-auto mb-4 flex w-[min(260px,100%)] border border-teal-100 bg-white/90 text-teal-900 shadow-sm hover:bg-teal-50;
+  }
+
+  .summary-row {
+    @apply flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3;
+  }
+
+  .summary-row span {
+    @apply text-sm font-semibold text-slate-500;
+  }
+
+  .summary-row strong {
+    @apply text-slate-950;
+  }
+
+  .range-edit-grid {
+    @apply grid grid-cols-2 gap-3;
+  }
+
+  .back-button {
+    @apply min-h-9 justify-self-start border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-sm hover:bg-slate-50;
+  }
+
+  .history-item {
+    @apply grid min-h-0 w-full grid-cols-[1fr_auto] gap-x-3 gap-y-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-right text-slate-900 shadow-sm hover:shadow-md;
+  }
+
+  .history-item small {
+    @apply font-normal text-slate-500;
+  }
+
+  .history-item .delete {
+    @apply row-span-2 inline-flex items-center gap-1 self-center rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700;
+  }
+
+  @media (max-width: 680px) {
+    .app-shell {
+      @apply pt-[70px];
+    }
+
+    .top-bar {
+      @apply min-h-[70px] grid-cols-[44px_1fr] px-4;
+    }
+
+    .source-link {
+      @apply hidden;
+    }
+
+    .screen,
+    .narrow-screen {
+      @apply w-[min(calc(100%_-_28px),920px)] pt-5;
+    }
+
+    .page-card {
+      @apply rounded-[1.6rem] p-5;
+    }
+
+    .range-row {
+      @apply grid-cols-1;
+    }
+
+    .reader-header {
+      @apply top-[70px] grid grid-cols-[1fr_auto] items-center;
+    }
+
+    .reader-header h1 {
+      @apply text-xl;
+    }
+
+    .reader-actions {
+      @apply justify-end;
+    }
+
+    .reader-actions .secondary span {
+      @apply sr-only;
+    }
+
+    .reader-panel {
+      @apply top-full;
+    }
+
+    .jump-panel,
+    .range-edit-grid.compact,
+    .save-inline-row {
+      @apply grid-cols-1;
+    }
+
+    .range-panel-summary {
+      @apply grid justify-items-start;
+    }
+
+    .range-edit-grid {
+      @apply grid-cols-1;
+    }
+
+    .verse-panel {
+      @apply p-5;
+    }
+
+    .quran-flow {
+      @apply text-[2rem] leading-[2.05];
+    }
+
+    .verse-meta {
+      @apply grid-cols-[auto_1fr_auto] gap-2 px-3;
+    }
+
+    .surah-title {
+      @apply text-xl;
+    }
+
+    .ayah-marker {
+      @apply mx-1.5 size-7 text-xs;
+    }
+
+    .verse-actions {
+      @apply mx-1 mt-2 flex translate-y-0 justify-center rounded-2xl;
+    }
+  }
 }

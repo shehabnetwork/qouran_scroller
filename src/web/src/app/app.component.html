@@ -1,17 +1,21 @@
 <main class="app-shell" dir="rtl">
   <header class="top-bar">
     <button type="button" class="menu-button" (click)="toggleMenu()" aria-label="القائمة">
-      <span></span>
-      <span></span>
-      <span></span>
+      <i class="bi bi-list" aria-hidden="true"></i>
     </button>
 
     <button type="button" class="brand-button" (click)="openScreen('reader')">
-      <span>Quran Scroll</span>
-      <strong>تلاوة عشوائية</strong>
+      <i class="bi bi-book" aria-hidden="true"></i>
+      <span>
+        <small>تصفح بتدبر</small>
+        <strong>جلسات القرآن</strong>
+      </span>
     </button>
 
-    <a [href]="source.url" target="_blank" rel="noreferrer">Tanzil {{ source.version }}</a>
+    <a class="source-link" [href]="source.url" target="_blank" rel="noreferrer">
+      <i class="bi bi-box-arrow-up-left" aria-hidden="true"></i>
+      <span>Tanzil {{ source.version }}</span>
+    </a>
   </header>
 
   <div class="menu-backdrop" *ngIf="menuOpen()" (click)="closeMenu()"></div>
@@ -23,49 +27,187 @@
         <strong *ngIf="user(); else guestName">{{ user()?.name }}</strong>
         <ng-template #guestName><strong>زائر</strong></ng-template>
       </div>
-      <button type="button" class="ghost" (click)="closeMenu()">إغلاق</button>
+      <button type="button" class="icon-button ghost" (click)="closeMenu()" aria-label="إغلاق">
+        <i class="bi bi-x-lg" aria-hidden="true"></i>
+      </button>
     </div>
 
-    <button type="button" (click)="openScreen('reader')" [class.active]="currentScreen() === 'reader'">القراءة</button>
+    <button type="button" (click)="openScreen('reader')" [class.active]="currentScreen() === 'reader'">
+      <i class="bi bi-book-half" aria-hidden="true"></i>
+      <span>القراءة</span>
+    </button>
 
     <ng-container *ngIf="user(); else guestMenu">
-      <button type="button" (click)="openScreen('range')" [class.active]="currentScreen() === 'range'">اختيار النطاق</button>
-      <button type="button" (click)="openScreen('save')" [class.active]="currentScreen() === 'save'">حفظ القراءة الحالية</button>
-      <button type="button" (click)="openScreen('history')" [class.active]="currentScreen() === 'history'">السجل</button>
-      <button type="button" class="danger" (click)="logout()">تسجيل الخروج</button>
+      <button type="button" (click)="openScreen('range')" [class.active]="currentScreen() === 'range'">
+        <i class="bi bi-sliders2" aria-hidden="true"></i>
+        <span>اختيار النطاق</span>
+      </button>
+      <button type="button" (click)="openScreen('save')" [class.active]="currentScreen() === 'save'">
+        <i class="bi bi-bookmark-plus" aria-hidden="true"></i>
+        <span>حفظ الجلسة الحالية</span>
+      </button>
+      <button type="button" (click)="openScreen('history')" [class.active]="currentScreen() === 'history'">
+        <i class="bi bi-clock-history" aria-hidden="true"></i>
+        <span>السجل</span>
+      </button>
+      <button type="button" class="danger" (click)="logout()">
+        <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+        <span>تسجيل الخروج</span>
+      </button>
     </ng-container>
 
     <ng-template #guestMenu>
-      <button type="button" (click)="setAuthMode('login')" [class.active]="currentScreen() === 'login'">تسجيل الدخول</button>
-      <button type="button" (click)="setAuthMode('register')" [class.active]="currentScreen() === 'register'">حساب جديد</button>
+      <button type="button" (click)="setAuthMode('login')" [class.active]="currentScreen() === 'login'">
+        <i class="bi bi-person-check" aria-hidden="true"></i>
+        <span>تسجيل الدخول</span>
+      </button>
+      <button type="button" (click)="setAuthMode('register')" [class.active]="currentScreen() === 'register'">
+        <i class="bi bi-person-plus" aria-hidden="true"></i>
+        <span>حساب جديد</span>
+      </button>
     </ng-template>
   </nav>
 
   <section class="screen reader-screen" *ngIf="currentScreen() === 'reader'">
     <header class="reader-header" *ngIf="openingVerse() as opening">
-      <div>
+      <div class="reader-title">
         <span>البداية</span>
         <h1>{{ referenceFor(opening) }}</h1>
       </div>
-      <button type="button" class="secondary" (click)="openRandomVerse()">عشوائي جديد</button>
+
+      <div class="reader-actions">
+        <button type="button" class="secondary" *ngIf="startIndex() > 0" (click)="loadPrevious()">
+          <i class="bi bi-chevron-up" aria-hidden="true"></i>
+          <span>آيات سابقة</span>
+        </button>
+
+        <button type="button" class="secondary" (click)="toggleReaderPanel('jump')" [class.active]="readerPanel() === 'jump'">
+          <i class="bi bi-crosshair" aria-hidden="true"></i>
+          <span>انتقال</span>
+        </button>
+
+        <button type="button" class="secondary" (click)="toggleReaderPanel('range')" [class.active]="readerPanel() === 'range'">
+          <i class="bi bi-bookmark-plus" aria-hidden="true"></i>
+          <span>النطاق</span>
+        </button>
+
+        <button type="button" class="secondary" (click)="openRandomVerse()">
+          <i class="bi bi-shuffle" aria-hidden="true"></i>
+          <span>جلسة جديدة</span>
+        </button>
+      </div>
+
+      <form class="reader-panel jump-panel" *ngIf="readerPanel() === 'jump'" (ngSubmit)="goToJumpVerse()">
+        <label>
+          السورة
+          <select name="jumpSurah" [ngModel]="jumpForm.surah" (ngModelChange)="updateJumpSurah(+$event)">
+            <option *ngFor="let surah of surahs" [value]="surah.number">{{ surah.number }}. {{ surah.name }}</option>
+          </select>
+        </label>
+        <label>
+          الآية
+          <input name="jumpAyah" type="number" min="1" [max]="maxAyahForJumpSurah()" [ngModel]="jumpForm.ayah" (ngModelChange)="updateJumpAyah(+$event)" />
+        </label>
+        <button type="submit" class="primary">
+          <i class="bi bi-crosshair" aria-hidden="true"></i>
+          <span>اذهب</span>
+        </button>
+      </form>
+
+      <div class="reader-panel range-panel" *ngIf="readerPanel() === 'range'">
+        <div class="range-panel-summary">
+          <span>النطاق المحدد</span>
+          <strong>{{ referenceFor(rangeStartVerse()) }} إلى {{ referenceFor(rangeEndVerse()) }}</strong>
+        </div>
+
+        <div class="range-edit-grid compact">
+          <label>
+            سورة البداية
+            <select [ngModel]="rangeBoundarySurah('start')" (ngModelChange)="updateRangeBoundary('start', 'surah', +$event)">
+              <option *ngFor="let surah of surahs" [value]="surah.number">{{ surah.number }}. {{ surah.name }}</option>
+            </select>
+          </label>
+          <label>
+            آية البداية
+            <input type="number" min="1" [max]="maxAyahForBoundary('start')" [ngModel]="rangeBoundaryAyah('start')" (ngModelChange)="updateRangeBoundary('start', 'ayah', +$event)" />
+          </label>
+          <label>
+            سورة النهاية
+            <select [ngModel]="rangeBoundarySurah('end')" (ngModelChange)="updateRangeBoundary('end', 'surah', +$event)">
+              <option *ngFor="let surah of surahs" [value]="surah.number">{{ surah.number }}. {{ surah.name }}</option>
+            </select>
+          </label>
+          <label>
+            آية النهاية
+            <input type="number" min="1" [max]="maxAyahForBoundary('end')" [ngModel]="rangeBoundaryAyah('end')" (ngModelChange)="updateRangeBoundary('end', 'ayah', +$event)" />
+          </label>
+        </div>
+
+        <div class="save-inline-row">
+          <label>
+            اسم الجلسة
+            <input [(ngModel)]="historyName" placeholder="مثال: ورد الفجر" />
+          </label>
+          <button type="button" class="primary" (click)="saveCurrentReading()">
+            <i class="bi bi-bookmark-check" aria-hidden="true"></i>
+            <span>حفظ</span>
+          </button>
+        </div>
+        <p class="message" *ngIf="saveMessage()">{{ saveMessage() }}</p>
+      </div>
     </header>
 
     <article class="verse-list">
-      <section class="verse-card" *ngFor="let verse of visibleVerses(); trackBy: trackVerse" [class.opening]="verse.index === startIndex()">
+      <section class="verse-panel" *ngFor="let panel of versePanels(); trackBy: trackPanel" [class.opening]="panel.startsAtOpening">
         <div class="verse-meta">
-          <span>{{ surahFor(verse)?.name }}</span>
-          <span>جزء {{ verse.juz }}</span>
-          <span>آية {{ verse.ayah }}</span>
+          <span class="side-badge">جزء {{ panel.juz }}</span>
+          <strong class="surah-title">{{ panel.surah?.name }}</strong>
+          <span class="side-badge">ربع {{ panel.quarter }}</span>
         </div>
-        <p>{{ verse.text }}</p>
+        <p class="quran-flow">
+          <ng-container *ngFor="let verse of panel.verses; trackBy: trackVerse">
+            <span
+              class="verse-unit"
+              role="button"
+              tabindex="0"
+              [class.active]="selectedVerseIndex() === verse.index"
+              [class.range-start]="isRangeStart(verse)"
+              [class.range-end]="isRangeEnd(verse)"
+              [class.in-selected-range]="isInsideSelectedRange(verse)"
+              (click)="selectVerse(verse)"
+              (keydown.enter)="selectVerse(verse)"
+            >
+              <span class="verse-text">{{ verse.text }}</span>
+              <span class="ayah-marker" [attr.aria-label]="'آية ' + verse.ayah">{{ verse.ayah }}</span>
+              <span class="verse-actions" *ngIf="selectedVerseIndex() === verse.index">
+                <button type="button" (click)="setRangeStartHere(verse, $event)">
+                  <i class="bi bi-arrow-bar-right" aria-hidden="true"></i>
+                  <span>ابدأ من هنا</span>
+                </button>
+                <button type="button" (click)="setRangeEndHere(verse, $event)">
+                  <i class="bi bi-arrow-bar-left" aria-hidden="true"></i>
+                  <span>انهِ هنا</span>
+                </button>
+              </span>
+            </span>
+          </ng-container>
+        </p>
       </section>
     </article>
 
-    <button type="button" class="load-more" (click)="loadMore()">المزيد</button>
+    <button type="button" class="load-more" (click)="loadMore()">
+      <i class="bi bi-chevron-down" aria-hidden="true"></i>
+      <span>المزيد</span>
+    </button>
   </section>
 
   <section class="screen narrow-screen" *ngIf="currentScreen() === 'login' || currentScreen() === 'register'">
     <div class="page-card">
+      <button type="button" class="back-button" (click)="backToReader()">
+        <i class="bi bi-arrow-right" aria-hidden="true"></i>
+        <span>رجوع للقراءة</span>
+      </button>
+
       <div class="page-title">
         <span>الحساب</span>
         <h1>{{ currentScreen() === 'login' ? 'تسجيل الدخول' : 'حساب جديد' }}</h1>
@@ -91,7 +233,8 @@
 
       <div class="google-auth">
         <button type="button" class="secondary google-redirect-button" *ngIf="googleRedirectEnabled(); else googlePopupButton" (click)="startGoogleRedirect()">
-          تسجيل الدخول باستخدام Google
+          <i class="bi bi-google" aria-hidden="true"></i>
+          <span>تسجيل الدخول باستخدام Google</span>
         </button>
         <ng-template #googlePopupButton>
           <div id="google-signin-button" *ngIf="googleClientId(); else googleSetup"></div>
@@ -101,8 +244,14 @@
         </ng-template>
       </div>
 
-      <button type="button" class="link-button" *ngIf="currentScreen() === 'login'" (click)="setAuthMode('register')">إنشاء حساب جديد</button>
-      <button type="button" class="link-button" *ngIf="currentScreen() === 'register'" (click)="setAuthMode('login')">لدي حساب بالفعل</button>
+      <button type="button" class="link-button" *ngIf="currentScreen() === 'login'" (click)="setAuthMode('register')">
+        <i class="bi bi-person-plus" aria-hidden="true"></i>
+        <span>إنشاء حساب جديد</span>
+      </button>
+      <button type="button" class="link-button" *ngIf="currentScreen() === 'register'" (click)="setAuthMode('login')">
+        <i class="bi bi-person-check" aria-hidden="true"></i>
+        <span>لدي حساب بالفعل</span>
+      </button>
       <p class="message" *ngIf="authMessage()">{{ authMessage() }}</p>
       <p class="message" *ngIf="googleMessage()">{{ googleMessage() }}</p>
     </div>
@@ -110,6 +259,11 @@
 
   <section class="screen narrow-screen" *ngIf="currentScreen() === 'range'">
     <div class="page-card">
+      <button type="button" class="back-button" (click)="backToReader()">
+        <i class="bi bi-arrow-right" aria-hidden="true"></i>
+        <span>رجوع للقراءة</span>
+      </button>
+
       <div class="page-title">
         <span>النطاق</span>
         <h1>اختيار مصدر الآية</h1>
@@ -118,19 +272,23 @@
       <div class="scope-grid">
         <label class="radio-option">
           <input type="radio" name="mode" [ngModel]="scope().mode" (ngModelChange)="updateScope('mode', $event)" value="all" />
-          كامل المصحف
+          <i class="bi bi-book" aria-hidden="true"></i>
+          <span>كامل المصحف</span>
         </label>
         <label class="radio-option">
           <input type="radio" name="mode" [ngModel]="scope().mode" (ngModelChange)="updateScope('mode', $event)" value="juz" />
-          من جزء إلى جزء
+          <i class="bi bi-grid-3x3-gap" aria-hidden="true"></i>
+          <span>من جزء إلى جزء</span>
         </label>
         <label class="radio-option">
           <input type="radio" name="mode" [ngModel]="scope().mode" (ngModelChange)="updateScope('mode', $event)" value="surah" />
-          من سورة إلى سورة
+          <i class="bi bi-journal-text" aria-hidden="true"></i>
+          <span>من سورة إلى سورة</span>
         </label>
         <label class="radio-option">
           <input type="radio" name="mode" [ngModel]="scope().mode" (ngModelChange)="updateScope('mode', $event)" value="ayah" />
-          آية محددة
+          <i class="bi bi-crosshair" aria-hidden="true"></i>
+          <span>آية محددة</span>
         </label>
       </div>
 
@@ -177,24 +335,55 @@
         </label>
       </div>
 
-      <button type="button" class="primary" (click)="openRandomVerse(true)">افتح آية من هذا النطاق</button>
+      <button type="button" class="primary" (click)="openRandomVerse(true)">
+        <i class="bi bi-play-circle" aria-hidden="true"></i>
+        <span>افتح آية من هذا النطاق</span>
+      </button>
     </div>
   </section>
 
   <section class="screen narrow-screen" *ngIf="currentScreen() === 'save'">
     <div class="page-card">
+      <button type="button" class="back-button" (click)="backToReader()">
+        <i class="bi bi-arrow-right" aria-hidden="true"></i>
+        <span>رجوع للقراءة</span>
+      </button>
+
       <div class="page-title">
         <span>حفظ</span>
-        <h1>حفظ القراءة الحالية</h1>
+        <h1>حفظ الجلسة الحالية</h1>
       </div>
 
       <div class="summary-row">
         <span>من</span>
-        <strong>{{ referenceFor(openingVerse()) }}</strong>
+        <strong>{{ referenceFor(rangeStartVerse()) }}</strong>
       </div>
       <div class="summary-row">
         <span>إلى</span>
-        <strong>{{ referenceFor(latestVerse()) }}</strong>
+        <strong>{{ referenceFor(rangeEndVerse()) }}</strong>
+      </div>
+
+      <div class="range-edit-grid">
+        <label>
+          سورة البداية
+          <select [ngModel]="rangeBoundarySurah('start')" (ngModelChange)="updateRangeBoundary('start', 'surah', +$event)">
+            <option *ngFor="let surah of surahs" [value]="surah.number">{{ surah.number }}. {{ surah.name }}</option>
+          </select>
+        </label>
+        <label>
+          آية البداية
+          <input type="number" min="1" [max]="maxAyahForBoundary('start')" [ngModel]="rangeBoundaryAyah('start')" (ngModelChange)="updateRangeBoundary('start', 'ayah', +$event)" />
+        </label>
+        <label>
+          سورة النهاية
+          <select [ngModel]="rangeBoundarySurah('end')" (ngModelChange)="updateRangeBoundary('end', 'surah', +$event)">
+            <option *ngFor="let surah of surahs" [value]="surah.number">{{ surah.number }}. {{ surah.name }}</option>
+          </select>
+        </label>
+        <label>
+          آية النهاية
+          <input type="number" min="1" [max]="maxAyahForBoundary('end')" [ngModel]="rangeBoundaryAyah('end')" (ngModelChange)="updateRangeBoundary('end', 'ayah', +$event)" />
+        </label>
       </div>
 
       <label>
@@ -202,25 +391,36 @@
         <input [(ngModel)]="historyName" placeholder="مثال: ورد الفجر" />
       </label>
 
-      <button type="button" class="primary" (click)="saveCurrentReading()">حفظ</button>
+      <button type="button" class="primary" (click)="saveCurrentReading()">
+        <i class="bi bi-bookmark-check" aria-hidden="true"></i>
+        <span>حفظ</span>
+      </button>
       <p class="message" *ngIf="saveMessage()">{{ saveMessage() }}</p>
     </div>
   </section>
 
   <section class="screen narrow-screen" *ngIf="currentScreen() === 'history'">
     <div class="page-card">
+      <button type="button" class="back-button" (click)="backToReader()">
+        <i class="bi bi-arrow-right" aria-hidden="true"></i>
+        <span>رجوع للقراءة</span>
+      </button>
+
       <div class="page-title">
         <span>السجل</span>
-        <h1>قراءات محفوظة</h1>
+        <h1>جلسات القرآن</h1>
       </div>
 
-      <p class="empty-state" *ngIf="!histories().length">لا توجد قراءات محفوظة بعد.</p>
+      <p class="empty-state" *ngIf="!histories().length">لا توجد جلسات محفوظة بعد.</p>
 
       <div class="history-list" *ngIf="histories().length">
         <button type="button" class="history-item" *ngFor="let history of histories()" (click)="resumeHistory(history)">
           <span>{{ history.name }}</span>
           <small>{{ verses[history.startIndex].surah }}:{{ verses[history.startIndex].ayah }} - {{ verses[history.endIndex].surah }}:{{ verses[history.endIndex].ayah }}</small>
-          <span class="delete" (click)="deleteHistory(history, $event)">حذف</span>
+          <span class="delete" (click)="deleteHistory(history, $event)">
+            <i class="bi bi-trash3" aria-hidden="true"></i>
+            <span>حذف</span>
+          </span>
         </button>
       </div>
     </div>
