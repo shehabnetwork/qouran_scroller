@@ -45,6 +45,23 @@ const DEFAULT_SCOPE: ScopePreference = {
 const STORAGE_PREFERENCES_KEY = 'quran-scroll-preferences';
 const STORAGE_HISTORY_KEY = 'quran-scroll-history';
 
+// Precomputed panel boundaries. A panel = contiguous verses sharing the same (surah, quarter).
+const PANEL_BOUNDARIES: { fromIndex: number; toIndex: number }[] = (() => {
+  const boundaries: { fromIndex: number; toIndex: number }[] = [];
+  let start = 0;
+  for (let i = 1; i <= QURAN_VERSES.length; i++) {
+    const atEnd = i === QURAN_VERSES.length;
+    const breaks = atEnd
+      || QURAN_VERSES[i].surah !== QURAN_VERSES[i - 1].surah
+      || QURAN_VERSES[i].quarter !== QURAN_VERSES[i - 1].quarter;
+    if (breaks) {
+      boundaries.push({ fromIndex: start, toIndex: i - 1 });
+      start = i;
+    }
+  }
+  return boundaries;
+})();
+
 @Component({
   selector: 'app-root',
   standalone: true,
@@ -189,13 +206,14 @@ export class AppComponent implements OnInit {
   }
 
   protected loadMore(): void {
-    const oldLatest = this.latestVerse();
-    const remaining = QURAN_VERSES.length - this.startIndex() - this.visibleCount();
-    if (remaining <= 0) {
+    const currentEnd = this.startIndex() + this.visibleCount() - 1;
+    if (currentEnd >= QURAN_VERSES.length - 1) {
       return;
     }
 
-    this.visibleCount.set(this.visibleCount() + Math.min(this.pageSize, remaining));
+    const oldLatest = this.latestVerse();
+    const nextPanel = this.panelFor(currentEnd + 1);
+    this.visibleCount.set(this.visibleCount() + (nextPanel.toIndex - currentEnd));
     if (!this.rangeEndPinned && this.selectedRangeEndIndex() === oldLatest.index) {
       this.selectedRangeEndIndex.set(this.latestVerse().index);
     }
@@ -208,10 +226,11 @@ export class AppComponent implements OnInit {
     }
 
     this.loadingPrevious = true;
-    const added = Math.min(this.pageSize, currentStart);
+    const prevPanel = this.panelFor(currentStart - 1);
+    const added = currentStart - prevPanel.fromIndex;
     const oldHeight = document.body.scrollHeight;
 
-    this.startIndex.set(currentStart - added);
+    this.startIndex.set(prevPanel.fromIndex);
     this.visibleCount.set(this.visibleCount() + added);
 
     queueMicrotask(() => {
@@ -335,7 +354,7 @@ export class AppComponent implements OnInit {
   }
 
   protected resumeHistory(history: ReadingHistory): void {
-    this.openAt(history.startIndex, history.endIndex - history.startIndex + 1);
+    this.openAt(history.startIndex, history.endIndex);
     this.rangeEndPinned = true;
     this.currentScreen.set('reader');
     this.closeMenu();
@@ -429,21 +448,40 @@ export class AppComponent implements OnInit {
     localStorage.setItem(STORAGE_PREFERENCES_KEY, JSON.stringify(this.scope()));
   }
 
-  private openAt(index: number, count = this.pageSize): void {
+  private openAt(index: number, endIndex?: number): void {
     const normalizedIndex = Math.max(0, Math.min(index, QURAN_VERSES.length - 1));
-    const normalizedCount = Math.max(this.pageSize, count);
-    const normalizedEndIndex = Math.min(normalizedIndex + normalizedCount - 1, QURAN_VERSES.length - 1);
+    const startPanel = this.panelFor(normalizedIndex);
+    const endPanel = endIndex !== undefined
+      ? this.panelFor(Math.max(normalizedIndex, Math.min(endIndex, QURAN_VERSES.length - 1)))
+      : startPanel;
 
     this.sessionStarted = true;
     this.readerScrollY = 0;
-    this.startIndex.set(normalizedIndex);
-    this.visibleCount.set(normalizedCount);
+    this.startIndex.set(startPanel.fromIndex);
+    this.visibleCount.set(endPanel.toIndex - startPanel.fromIndex + 1);
     this.selectedRangeStartIndex.set(normalizedIndex);
-    this.selectedRangeEndIndex.set(normalizedEndIndex);
+    this.selectedRangeEndIndex.set(endPanel.toIndex);
     this.selectedVerseIndex.set(null);
     this.rangeEndPinned = false;
     this.syncJumpFormToVerse(QURAN_VERSES[normalizedIndex]);
-    queueMicrotask(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
+    queueMicrotask(() => {
+      const el = document.querySelector('.range-start');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    });
+  }
+
+  private panelFor(verseIndex: number): { fromIndex: number; toIndex: number } {
+    let lo = 0, hi = PANEL_BOUNDARIES.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (PANEL_BOUNDARIES[mid].toIndex < verseIndex) lo = mid + 1;
+      else hi = mid;
+    }
+    return PANEL_BOUNDARIES[lo];
   }
 
   private showReader(): void {

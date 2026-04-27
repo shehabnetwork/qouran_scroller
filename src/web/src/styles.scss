@@ -226,7 +226,7 @@ body {
   }
 
   .reader-header {
-    @apply sticky top-[76px] z-[8] flex items-center justify-between gap-3 bg-gradient-to-b from-slate-50/95 via-slate-50/85 to-transparent py-3 backdrop-blur-sm;
+    @apply sticky top-[76px] z-[8] flex items-center justify-between gap-3 bg-gradient-to-b from-slate-50/95 via-slate-50/85 to-transparent py-3 px-3 backdrop-blur-sm;
   }
 
   .reader-header span {
