@@ -102,7 +102,7 @@ export class AppComponent implements OnInit {
           surah: this.findSurah(verse.surah),
           juz: verse.juz,
           quarter: verse.quarter,
-          startsAtOpening: verse.index === this.startIndex(),
+          startsAtOpening: verse.index === this.selectedRangeStartIndex(),
           verses: [verse],
         });
         continue;
@@ -114,7 +114,7 @@ export class AppComponent implements OnInit {
     return panels;
   });
 
-  protected readonly openingVerse = computed(() => QURAN_VERSES[this.startIndex()]);
+  protected readonly openingVerse = computed(() => QURAN_VERSES[this.selectedRangeStartIndex()]);
   protected readonly latestVerse = computed(() => this.visibleVerses().at(-1) ?? this.openingVerse());
   protected readonly rangeStartVerse = computed(() => QURAN_VERSES[this.selectedRangeStartIndex()]);
   protected readonly rangeEndVerse = computed(() => QURAN_VERSES[this.selectedRangeEndIndex()]);
