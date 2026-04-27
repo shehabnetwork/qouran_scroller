@@ -1,11 +1,10 @@
 import { CommonModule } from '@angular/common';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Component, HostListener, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, HostListener, OnInit, computed, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { JUZ_BOUNDARIES, QURAN_SOURCE, QURAN_VERSES, QuranVerse, SURAHS, SurahInfo } from './data/quran-data';
 
 type ScopeMode = 'all' | 'juz' | 'surah' | 'ayah';
-type AppScreen = 'reader' | 'login' | 'register' | 'range' | 'save' | 'history';
+type AppScreen = 'reader' | 'range' | 'save' | 'history';
 type ReaderPanel = 'jump' | 'range' | null;
 
 interface ScopePreference {
@@ -15,48 +14,6 @@ interface ScopePreference {
   fromSurah: number;
   toSurah: number;
   ayah: number;
-}
-
-interface AuthUser {
-  id: string;
-  name: string;
-  email: string;
-}
-
-interface AuthResponse {
-  token: string;
-  user: AuthUser;
-}
-
-interface PublicConfig {
-  googleClientId: string;
-  googleRedirectEnabled: boolean;
-}
-
-interface GoogleCredentialResponse {
-  credential: string;
-  select_by?: string;
-}
-
-interface GoogleIdentityServices {
-  accounts: {
-    id: {
-      initialize: (configuration: {
-        client_id: string;
-        callback: (response: GoogleCredentialResponse) => void;
-        use_fedcm_for_button?: boolean;
-        button_auto_select?: boolean;
-      }) => void;
-      renderButton: (parent: HTMLElement, options: Record<string, string | number | boolean>) => void;
-      disableAutoSelect: () => void;
-    };
-  };
-}
-
-declare global {
-  interface Window {
-    google?: GoogleIdentityServices;
-  }
 }
 
 interface ReadingHistory {
@@ -85,6 +42,9 @@ const DEFAULT_SCOPE: ScopePreference = {
   ayah: 1,
 };
 
+const STORAGE_PREFERENCES_KEY = 'quran-scroll-preferences';
+const STORAGE_HISTORY_KEY = 'quran-scroll-history';
+
 @Component({
   selector: 'app-root',
   standalone: true,
@@ -93,8 +53,6 @@ const DEFAULT_SCOPE: ScopePreference = {
   styleUrl: './app.component.scss',
 })
 export class AppComponent implements OnInit {
-  private readonly http = inject(HttpClient);
-  private readonly apiBase = 'http://localhost:5037/api';
   private readonly pageSize = 5;
 
   protected readonly source = QURAN_SOURCE;
@@ -103,8 +61,6 @@ export class AppComponent implements OnInit {
   protected readonly juzs = Array.from({ length: 30 }, (_, index) => index + 1);
   protected readonly currentScreen = signal<AppScreen>('reader');
   protected readonly menuOpen = signal(false);
-  protected readonly authMode = signal<'login' | 'register'>('login');
-  protected readonly user = signal<AuthUser | null>(null);
   protected readonly histories = signal<ReadingHistory[]>([]);
   protected readonly scope = signal<ScopePreference>({ ...DEFAULT_SCOPE });
   protected readonly startIndex = signal(0);
@@ -112,19 +68,8 @@ export class AppComponent implements OnInit {
   protected readonly selectedVerseIndex = signal<number | null>(null);
   protected readonly selectedRangeStartIndex = signal(0);
   protected readonly selectedRangeEndIndex = signal(this.pageSize - 1);
-  protected readonly busy = signal(false);
-  protected readonly authMessage = signal('');
   protected readonly saveMessage = signal('');
-  protected readonly googleClientId = signal('');
-  protected readonly googleRedirectEnabled = signal(false);
-  protected readonly googleMessage = signal('');
   protected readonly readerPanel = signal<ReaderPanel>(null);
-
-  protected authForm = {
-    name: '',
-    email: '',
-    password: '',
-  };
 
   protected jumpForm = {
     surah: 1,
@@ -132,7 +77,6 @@ export class AppComponent implements OnInit {
   };
 
   protected historyName = '';
-  private googleInitialized = false;
   private rangeEndPinned = false;
   private sessionStarted = false;
   private loadingPrevious = false;
@@ -179,19 +123,6 @@ export class AppComponent implements OnInit {
   protected readonly maxAyahForSelectedSurah = computed(() => this.selectedSurah()?.ayahCount ?? 1);
 
   ngOnInit(): void {
-    if (this.handleRedirectLoginResult()) {
-      return;
-    }
-
-    this.loadPublicConfig();
-
-    const token = this.token;
-    if (!token) {
-      this.openRandomVerse();
-      return;
-    }
-
-    this.fetchMe();
     this.loadPreferencesAndHistory();
   }
 
@@ -213,61 +144,19 @@ export class AppComponent implements OnInit {
   }
 
   protected submitAuth(): void {
-    this.busy.set(true);
-    this.authMessage.set('');
-
-    const endpoint = this.authMode() === 'login' ? 'login' : 'register';
-    this.http.post<AuthResponse>(`${this.apiBase}/auth/${endpoint}`, this.authForm).subscribe({
-      next: (response) => {
-        localStorage.setItem('quran-scroll-token', response.token);
-        this.user.set(response.user);
-        this.authForm.password = '';
-        this.authMessage.set('تم تسجيل الدخول.');
-        this.closeMenu();
-        this.showReader();
-        this.loadPreferencesAndHistory();
-      },
-      error: () => {
-        this.authMessage.set('تعذر تسجيل الدخول. تحقق من البريد وكلمة المرور.');
-        this.busy.set(false);
-      },
-      complete: () => this.busy.set(false),
-    });
+    // no-op: auth removed
   }
 
-  protected signInWithGoogleCredential(credential: string): void {
-    this.busy.set(true);
-    this.googleMessage.set('');
-
-    this.http.post<AuthResponse>(`${this.apiBase}/auth/google`, { credential }).subscribe({
-      next: (response) => {
-        localStorage.setItem('quran-scroll-token', response.token);
-        this.user.set(response.user);
-        this.authForm.password = '';
-        this.googleMessage.set('تم تسجيل الدخول بحساب Google.');
-        this.closeMenu();
-        this.showReader();
-        this.loadPreferencesAndHistory();
-      },
-      error: () => {
-        this.googleMessage.set('تعذر تسجيل الدخول بحساب Google.');
-        this.busy.set(false);
-      },
-      complete: () => this.busy.set(false),
-    });
+  protected signInWithGoogleCredential(_credential: string): void {
+    // no-op: auth removed
   }
 
   protected startGoogleRedirect(): void {
-    window.location.href = `${this.apiBase}/auth/google/start`;
+    // no-op: auth removed
   }
 
   protected logout(): void {
-    localStorage.removeItem('quran-scroll-token');
-    this.user.set(null);
-    this.histories.set([]);
-    this.authMessage.set('');
-    this.currentScreen.set('reader');
-    this.closeMenu();
+    // no-op: auth removed
   }
 
   protected updateScope<K extends keyof ScopePreference>(key: K, value: ScopePreference[K]): void {
@@ -294,7 +183,7 @@ export class AppComponent implements OnInit {
     this.currentScreen.set('reader');
     this.closeMenu();
 
-    if (savePreference && this.user()) {
+    if (savePreference) {
       this.savePreferences();
     }
   }
@@ -423,32 +312,26 @@ export class AppComponent implements OnInit {
   }
 
   protected saveCurrentReading(): void {
-    if (!this.user()) {
-      this.saveMessage.set('سجل الدخول أولا لحفظ الجلسة.');
-      return;
-    }
-
     const opening = this.rangeStartVerse();
     const latest = this.rangeEndVerse();
     const fallbackName = `${this.referenceFor(opening)} إلى ${this.referenceFor(latest)}`;
     const name = this.historyName.trim() || fallbackName;
 
-    this.http
-      .post<ReadingHistory>(
-        `${this.apiBase}/readings`,
-        { name, startIndex: opening.index, endIndex: latest.index },
-        { headers: this.authHeaders() },
-      )
-      .subscribe({
-        next: (history) => {
-          this.histories.set([history, ...this.histories()]);
-          this.historyName = '';
-          this.saveMessage.set('تم حفظ الجلسة.');
-          this.readerPanel.set(null);
-          this.showReader();
-        },
-        error: () => this.saveMessage.set('تعذر حفظ الجلسة الآن.'),
-      });
+    const entry: ReadingHistory = {
+      id: crypto.randomUUID(),
+      name,
+      startIndex: opening.index,
+      endIndex: latest.index,
+      createdAt: new Date().toISOString(),
+    };
+
+    const updated = [entry, ...this.histories()];
+    this.histories.set(updated);
+    localStorage.setItem(STORAGE_HISTORY_KEY, JSON.stringify(updated));
+    this.historyName = '';
+    this.saveMessage.set('تم حفظ الجلسة.');
+    this.readerPanel.set(null);
+    this.showReader();
   }
 
   protected resumeHistory(history: ReadingHistory): void {
@@ -460,9 +343,9 @@ export class AppComponent implements OnInit {
 
   protected deleteHistory(history: ReadingHistory, event: MouseEvent): void {
     event.stopPropagation();
-    this.http.delete(`${this.apiBase}/readings/${history.id}`, { headers: this.authHeaders() }).subscribe({
-      next: () => this.histories.set(this.histories().filter((item) => item.id !== history.id)),
-    });
+    const updated = this.histories().filter((item) => item.id !== history.id);
+    this.histories.set(updated);
+    localStorage.setItem(STORAGE_HISTORY_KEY, JSON.stringify(updated));
   }
 
   protected referenceFor(verse: QuranVerse | undefined): string {
@@ -486,35 +369,23 @@ export class AppComponent implements OnInit {
     return panel.id;
   }
 
-  protected setAuthMode(mode: 'login' | 'register'): void {
-    if (this.currentScreen() === 'reader') {
-      this.readerScrollY = window.scrollY;
-    }
-    this.authMode.set(mode);
-    this.currentScreen.set(mode);
-    this.authMessage.set('');
-    this.closeMenu();
-    this.scheduleGoogleButtonRender();
+  protected setAuthMode(_mode: 'login' | 'register'): void {
+    // no-op: auth removed
   }
 
   protected openScreen(screen: AppScreen): void {
-    if ((screen === 'range' || screen === 'save' || screen === 'history') && !this.user()) {
-      this.setAuthMode('login');
-      return;
-    }
-
     if (this.currentScreen() === 'reader' && screen !== 'reader') {
       this.readerScrollY = window.scrollY;
     }
 
     this.currentScreen.set(screen);
     this.closeMenu();
+
     if (screen === 'reader') {
       this.restoreReaderScroll();
     } else {
       queueMicrotask(() => window.scrollTo({ top: 0, behavior: 'auto' }));
     }
-    this.scheduleGoogleButtonRender();
   }
 
   protected backToReader(): void {
@@ -534,147 +405,28 @@ export class AppComponent implements OnInit {
     this.menuOpen.set(false);
   }
 
-  private fetchMe(): void {
-    this.http.get<AuthUser>(`${this.apiBase}/me`, { headers: this.authHeaders() }).subscribe({
-      next: (user) => this.user.set(user),
-      error: () => this.logout(),
-    });
-  }
-
-  private loadPublicConfig(): void {
-    this.http.get<PublicConfig>(`${this.apiBase}/config`).subscribe({
-      next: (config) => {
-        this.googleClientId.set(config.googleClientId);
-        this.googleRedirectEnabled.set(config.googleRedirectEnabled);
-        if (config.googleClientId) {
-          this.loadGoogleScript();
-        }
-      },
-    });
-  }
-
-  private loadGoogleScript(): void {
-    if (window.google) {
-      this.initializeGoogle();
-      return;
-    }
-
-    const existing = document.querySelector<HTMLScriptElement>('script[src="https://accounts.google.com/gsi/client"]');
-    if (existing) {
-      existing.addEventListener('load', () => this.initializeGoogle(), { once: true });
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.onload = () => this.initializeGoogle();
-    script.onerror = () => this.googleMessage.set('تعذر تحميل خدمة تسجيل الدخول من Google.');
-    document.head.appendChild(script);
-  }
-
-  private handleRedirectLoginResult(): boolean {
-    const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash;
-    if (!hash) {
-      return false;
-    }
-
-    const params = new URLSearchParams(hash);
-    const token = params.get('token');
-    const googleError = params.get('googleError');
-    if (!token && !googleError) {
-      return false;
-    }
-
-    history.replaceState(null, '', window.location.pathname);
-    if (token) {
-      localStorage.setItem('quran-scroll-token', token);
-      this.fetchMe();
-      this.loadPreferencesAndHistory();
-      this.currentScreen.set('reader');
-      return true;
-    }
-
-    this.currentScreen.set('login');
-    this.googleMessage.set('تعذر إكمال تسجيل الدخول عبر Google.');
-    this.loadPublicConfig();
-    this.openRandomVerse();
-    return true;
-  }
-
-  private initializeGoogle(): void {
-    if (!window.google || !this.googleClientId()) {
-      return;
-    }
-
-    if (!this.googleInitialized) {
-      window.google.accounts.id.initialize({
-        client_id: this.googleClientId(),
-        callback: (response) => this.signInWithGoogleCredential(response.credential),
-        use_fedcm_for_button: true,
-        button_auto_select: false,
-      });
-      this.googleInitialized = true;
-    }
-
-    this.scheduleGoogleButtonRender();
-  }
-
-  private scheduleGoogleButtonRender(): void {
-    setTimeout(() => this.renderGoogleButton(), 0);
-  }
-
-  private renderGoogleButton(): void {
-    const screen = this.currentScreen();
-    if (!window.google || !this.googleClientId() || (screen !== 'login' && screen !== 'register')) {
-      return;
-    }
-
-    const buttonContainer = document.getElementById('google-signin-button');
-    if (!buttonContainer) {
-      return;
-    }
-
-    buttonContainer.replaceChildren();
-    window.google.accounts.id.renderButton(buttonContainer, {
-      type: 'standard',
-      theme: 'outline',
-      size: 'large',
-      text: screen === 'register' ? 'signup_with' : 'signin_with',
-      shape: 'rectangular',
-      logo_alignment: 'left',
-      width: 320,
-      locale: 'ar',
-    });
-  }
-
   private loadPreferencesAndHistory(): void {
-    this.http.get<ScopePreference>(`${this.apiBase}/preferences`, { headers: this.authHeaders() }).subscribe({
-      next: (preference) => {
-        this.scope.set(this.normalizeScope(preference));
-        if (!this.sessionStarted) {
-          this.openRandomVerse();
-        }
-      },
-      error: () => {
-        if (!this.sessionStarted) {
-          this.openRandomVerse();
-        }
-      },
-    });
+    const rawPrefs = localStorage.getItem(STORAGE_PREFERENCES_KEY);
+    if (rawPrefs) {
+      try {
+        this.scope.set(this.normalizeScope(JSON.parse(rawPrefs)));
+      } catch { }
+    }
 
-    this.http.get<ReadingHistory[]>(`${this.apiBase}/readings`, { headers: this.authHeaders() }).subscribe({
-      next: (histories) => this.histories.set(histories),
-    });
+    if (!this.sessionStarted) {
+      this.openRandomVerse();
+    }
+
+    const rawHistory = localStorage.getItem(STORAGE_HISTORY_KEY);
+    if (rawHistory) {
+      try {
+        this.histories.set(JSON.parse(rawHistory));
+      } catch { }
+    }
   }
 
   private savePreferences(): void {
-    this.http
-      .put<ScopePreference>(`${this.apiBase}/preferences`, this.scope(), { headers: this.authHeaders() })
-      .subscribe({
-        next: (preference) => this.scope.set(this.normalizeScope(preference)),
-      });
+    localStorage.setItem(STORAGE_PREFERENCES_KEY, JSON.stringify(this.scope()));
   }
 
   private openAt(index: number, count = this.pageSize): void {
@@ -775,13 +527,5 @@ export class AppComponent implements OnInit {
 
   private clamp(value: number, min: number, max: number): number {
     return Math.min(Math.max(value, min), max);
-  }
-
-  private authHeaders(): HttpHeaders {
-    return new HttpHeaders({ Authorization: `Bearer ${this.token}` });
-  }
-
-  private get token(): string {
-    return localStorage.getItem('quran-scroll-token') ?? '';
   }
 }
