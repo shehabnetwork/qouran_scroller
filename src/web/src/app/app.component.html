@@ -347,15 +347,17 @@
       <p class="empty-state" *ngIf="!histories().length">لا توجد جلسات محفوظة بعد.</p>
 
       <div class="history-list" *ngIf="histories().length">
-        <button type="button" class="history-item" *ngFor="let history of histories()" (click)="resumeHistory(history)">
-          <span>{{ history.name }}</span>
-          <small>{{ verses[history.startIndex].surah }}:{{ verses[history.startIndex].ayah }} - {{
-            verses[history.endIndex].surah }}:{{ verses[history.endIndex].ayah }}</small>
-          <span class="delete" (click)="deleteHistory(history, $event)">
+        <div type="button" class="history-item" *ngFor="let history of histories()">
+          <div>
+            <span  (click)="resumeHistory(history)">{{ history.name }}</span>
+            <small>{{ verses[history.startIndex].surah }}:{{ verses[history.startIndex].ayah }} - {{
+              verses[history.endIndex].surah }}:{{ verses[history.endIndex].ayah }}</small>
+          </div>
+          <button class="delete" (click)="deleteHistory(history, $event)">
             <i class="bi bi-trash3" aria-hidden="true"></i>
             <span>حذف</span>
-          </span>
-        </button>
+          </button>
+        </div>
       </div>
     </div>
   </section>
