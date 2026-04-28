@@ -143,6 +143,11 @@ export class AppComponent implements OnInit {
     this.loadPreferencesAndHistory();
   }
 
+  @HostListener('window:keydown.escape')
+  protected onEscape(): void {
+    this.selectedVerseIndex.set(null);
+  }
+
   @HostListener('window:scroll')
   protected onScroll(): void {
     if (this.currentScreen() !== 'reader') {
@@ -262,7 +267,7 @@ export class AppComponent implements OnInit {
   }
 
   protected selectVerse(verse: QuranVerse): void {
-    this.selectedVerseIndex.set(verse.index);
+    this.selectedVerseIndex.set(this.selectedVerseIndex() === verse.index ? null : verse.index);
   }
 
   protected setRangeStartHere(verse: QuranVerse, event?: MouseEvent): void {
@@ -272,7 +277,7 @@ export class AppComponent implements OnInit {
       this.selectedRangeEndIndex.set(verse.index);
       this.rangeEndPinned = true;
     }
-    this.selectedVerseIndex.set(verse.index);
+    this.selectedVerseIndex.set(null);
   }
 
   protected setRangeEndHere(verse: QuranVerse, event?: MouseEvent): void {
@@ -282,7 +287,7 @@ export class AppComponent implements OnInit {
     }
     this.selectedRangeEndIndex.set(verse.index);
     this.rangeEndPinned = true;
-    this.selectedVerseIndex.set(verse.index);
+    this.selectedVerseIndex.set(null);
   }
 
   protected isRangeStart(verse: QuranVerse): boolean {
