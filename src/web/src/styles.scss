@@ -337,7 +337,11 @@ body {
   }
 
   .verse-actions {
-    @apply mx-2 inline-flex translate-y-[-0.35em] items-center gap-1 rounded-full border border-teal-100 bg-white px-2 py-1 align-middle font-menu shadow-lg shadow-slate-950/10;
+    @apply absolute z-20 flex items-center gap-1 rounded-full border border-teal-100 bg-white px-2 py-1 font-menu shadow-lg shadow-slate-950/10;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
   }
 
   .verse-actions button {
@@ -494,10 +498,6 @@ body {
 
     .ayah-marker {
       @apply mx-1.5 size-7 text-xs;
-    }
-
-    .verse-actions {
-      @apply mx-1 mt-2 flex translate-y-0 justify-center rounded-2xl;
     }
   }
 }
