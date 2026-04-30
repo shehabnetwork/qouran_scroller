@@ -16,6 +16,15 @@
       <i class="bi bi-box-arrow-up-left" aria-hidden="true"></i>
       <span>Tanzil {{ source.version }}</span>
     </a>
+
+    <button *ngIf="user()" type="button" class="user-avatar-button" (click)="toggleMenu()"
+      [attr.aria-label]="userName()">
+      <i class="bi bi-person-circle" aria-hidden="true"></i>
+    </button>
+    <button *ngIf="!user()" type="button" class="secondary sign-in-topbar-button" (click)="openScreen('auth')">
+      <i class="bi bi-person" aria-hidden="true"></i>
+      <span>دخول</span>
+    </button>
   </header>
 
   <div class="menu-backdrop" *ngIf="menuOpen()" (click)="closeMenu()"></div>
@@ -46,6 +55,23 @@
       <i class="bi bi-clock-history" aria-hidden="true"></i>
       <span>السجل</span>
     </button>
+    <div class="menu-divider"></div>
+    <ng-container *ngIf="user(); else signInButton">
+      <div class="menu-user-info">
+        <i class="bi bi-person-circle" aria-hidden="true"></i>
+        <span>{{ userName() }}</span>
+      </div>
+      <button type="button" (click)="logout()">
+        <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+        <span>تسجيل الخروج</span>
+      </button>
+    </ng-container>
+    <ng-template #signInButton>
+      <button type="button" (click)="openScreen('auth')" [class.active]="currentScreen() === 'auth'">
+        <i class="bi bi-person-circle" aria-hidden="true"></i>
+        <span>تسجيل الدخول</span>
+      </button>
+    </ng-template>
   </nav>
 
   <section class="screen reader-screen" *ngIf="currentScreen() === 'reader'">
@@ -349,7 +375,7 @@
       <div class="history-list" *ngIf="histories().length">
         <div type="button" class="history-item" *ngFor="let history of histories()">
           <div>
-            <span  (click)="resumeHistory(history)">{{ history.name }}</span>
+            <span (click)="resumeHistory(history)">{{ history.name }}</span>
             <small>{{ verses[history.startIndex].surah }}:{{ verses[history.startIndex].ayah }} - {{
               verses[history.endIndex].surah }}:{{ verses[history.endIndex].ayah }}</small>
           </div>
@@ -358,6 +384,59 @@
             <span>حذف</span>
           </button>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen narrow-screen" *ngIf="currentScreen() === 'auth'">
+    <div class="page-card">
+      <button type="button" class="back-button" (click)="backToReader()">
+        <i class="bi bi-arrow-right" aria-hidden="true"></i>
+        <span>رجوع للقراءة</span>
+      </button>
+
+      <div class="page-title">
+        <span>الحساب</span>
+        <h1>{{ authMode() === 'login' ? 'تسجيل الدخول' : 'إنشاء حساب' }}</h1>
+      </div>
+
+      <form (ngSubmit)="submitAuth()">
+        <label *ngIf="authMode() === 'register'">
+          الاسم
+          <input type="text" [(ngModel)]="authForm.name" name="authName" placeholder="اختياري" />
+        </label>
+        <label>
+          البريد الإلكتروني
+          <input type="email" [(ngModel)]="authForm.email" name="authEmail" required />
+        </label>
+        <label>
+          كلمة المرور
+          <input type="password" [(ngModel)]="authForm.password" name="authPassword" required minlength="6" />
+        </label>
+        <p class="message" *ngIf="authError()">{{ authError() }}</p>
+        <button type="submit" class="primary" [disabled]="authLoading()">
+          <i class="bi bi-person-check" aria-hidden="true"></i>
+          <span>{{ authMode() === 'login' ? 'دخول' : 'إنشاء حساب' }}</span>
+        </button>
+      </form>
+
+      <div class="auth-divider">أو</div>
+
+      <button type="button" class="secondary google-redirect-button" (click)="startGoogleRedirect()"
+        [disabled]="authLoading()">
+        <i class="bi bi-google" aria-hidden="true"></i>
+        <span>متابعة مع Google</span>
+      </button>
+
+      <div class="auth-switch">
+        <ng-container *ngIf="authMode() === 'login'">
+          <span>ليس لديك حساب؟</span>
+          <button type="button" class="link-button" (click)="setAuthMode('register')">إنشاء حساب</button>
+        </ng-container>
+        <ng-container *ngIf="authMode() === 'register'">
+          <span>لديك حساب بالفعل؟</span>
+          <button type="button" class="link-button" (click)="setAuthMode('login')">تسجيل الدخول</button>
+        </ng-container>
       </div>
     </div>
   </section>

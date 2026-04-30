@@ -1,10 +1,12 @@
 import { CommonModule } from '@angular/common';
-import { Component, HostListener, OnInit, computed, signal } from '@angular/core';
+import { Component, HostListener, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { User } from '@supabase/supabase-js';
 import { JUZ_BOUNDARIES, QURAN_SOURCE, QURAN_VERSES, QuranVerse, SURAHS, SurahInfo } from './data/quran-data';
+import { SupabaseService } from './supabase.service';
 
 type ScopeMode = 'all' | 'juz' | 'surah' | 'ayah';
-type AppScreen = 'reader' | 'range' | 'save' | 'history';
+type AppScreen = 'reader' | 'range' | 'save' | 'history' | 'auth';
 type ReaderPanel = 'jump' | 'range' | null;
 
 interface ScopePreference {
@@ -70,6 +72,7 @@ const PANEL_BOUNDARIES: { fromIndex: number; toIndex: number }[] = (() => {
   styleUrl: './app.component.scss',
 })
 export class AppComponent implements OnInit {
+  private readonly supabase = inject(SupabaseService);
   private readonly pageSize = 5;
 
   protected readonly source = QURAN_SOURCE;
@@ -87,10 +90,20 @@ export class AppComponent implements OnInit {
   protected readonly selectedRangeEndIndex = signal(this.pageSize - 1);
   protected readonly saveMessage = signal('');
   protected readonly readerPanel = signal<ReaderPanel>(null);
+  protected readonly user = signal<User | null>(null);
+  protected readonly authMode = signal<'login' | 'register'>('login');
+  protected readonly authError = signal('');
+  protected readonly authLoading = signal(false);
 
   protected jumpForm = {
     surah: 1,
     ayah: 1,
+  };
+
+  protected authForm = {
+    email: '',
+    password: '',
+    name: '',
   };
 
   protected historyName = '';
@@ -138,9 +151,31 @@ export class AppComponent implements OnInit {
 
   protected readonly selectedSurah = computed(() => this.findSurah(this.scope().fromSurah));
   protected readonly maxAyahForSelectedSurah = computed(() => this.selectedSurah()?.ayahCount ?? 1);
+  protected readonly userName = computed(() => {
+    const u = this.user();
+    return (u?.user_metadata?.['full_name'] as string | undefined) || u?.email || '';
+  });
 
   ngOnInit(): void {
-    this.loadPreferencesAndHistory();
+    this.loadLocalPreferencesAndHistory();
+
+    // onAuthStateChange fires immediately with INITIAL_SESSION (handles already-logged-in users
+    // from localStorage), and later with SIGNED_IN after an OAuth redirect — no need for a
+    // separate getSession() call which races against hash processing and can overwrite the user.
+    this.supabase.onAuthStateChange((_event, session) => {
+      const prevUser = this.user();
+      const newUser = session?.user ?? null;
+      this.user.set(newUser);
+      if (newUser && !prevUser) {
+        void this.loadRemotePreferencesAndHistory(newUser.id);
+      } else if (!newUser && prevUser) {
+        this.loadLocalPreferencesAndHistory();
+      }
+      // Remove OAuth tokens from the URL hash after Supabase processes them
+      if (window.location.hash.includes('access_token')) {
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+    });
   }
 
   @HostListener('window:keydown.escape')
@@ -165,8 +200,22 @@ export class AppComponent implements OnInit {
     }
   }
 
-  protected submitAuth(): void {
-    // no-op: auth removed
+  protected async submitAuth(): Promise<void> {
+    this.authError.set('');
+    this.authLoading.set(true);
+    try {
+      if (this.authMode() === 'register') {
+        const { error } = await this.supabase.signUp(this.authForm.email, this.authForm.password, this.authForm.name);
+        if (error) { this.authError.set(error.message); return; }
+      } else {
+        const { error } = await this.supabase.signIn(this.authForm.email, this.authForm.password);
+        if (error) { this.authError.set(error.message); return; }
+      }
+      this.authForm = { email: '', password: '', name: '' };
+      this.openScreen('reader');
+    } finally {
+      this.authLoading.set(false);
+    }
   }
 
   protected signInWithGoogleCredential(_credential: string): void {
@@ -174,11 +223,12 @@ export class AppComponent implements OnInit {
   }
 
   protected startGoogleRedirect(): void {
-    // no-op: auth removed
+    void this.supabase.signInWithGoogle();
   }
 
-  protected logout(): void {
-    // no-op: auth removed
+  protected async logout(): Promise<void> {
+    await this.supabase.signOut();
+    this.openScreen('reader');
   }
 
   protected updateScope<K extends keyof ScopePreference>(key: K, value: ScopePreference[K]): void {
@@ -206,7 +256,7 @@ export class AppComponent implements OnInit {
     this.closeMenu();
 
     if (savePreference) {
-      this.savePreferences();
+      void this.savePreferences();
     }
   }
 
@@ -335,23 +385,37 @@ export class AppComponent implements OnInit {
     this.rangeEndPinned = true;
   }
 
-  protected saveCurrentReading(): void {
+  protected async saveCurrentReading(): Promise<void> {
     const opening = this.rangeStartVerse();
     const latest = this.rangeEndVerse();
     const fallbackName = `${this.referenceFor(opening)} إلى ${this.referenceFor(latest)}`;
     const name = this.historyName.trim() || fallbackName;
 
-    const entry: ReadingHistory = {
-      id: crypto.randomUUID(),
-      name,
-      startIndex: opening.index,
-      endIndex: latest.index,
-      createdAt: new Date().toISOString(),
-    };
+    const user = this.user();
+    if (user) {
+      const { data, error } = await this.supabase.saveReading(user.id, name, opening.index, latest.index);
+      if (!error && data) {
+        this.histories.set([{
+          id: data.id,
+          name: data.name,
+          startIndex: data.start_index,
+          endIndex: data.end_index,
+          createdAt: data.created_at,
+        }, ...this.histories()]);
+      }
+    } else {
+      const entry: ReadingHistory = {
+        id: crypto.randomUUID(),
+        name,
+        startIndex: opening.index,
+        endIndex: latest.index,
+        createdAt: new Date().toISOString(),
+      };
+      const updated = [entry, ...this.histories()];
+      this.histories.set(updated);
+      localStorage.setItem(STORAGE_HISTORY_KEY, JSON.stringify(updated));
+    }
 
-    const updated = [entry, ...this.histories()];
-    this.histories.set(updated);
-    localStorage.setItem(STORAGE_HISTORY_KEY, JSON.stringify(updated));
     this.historyName = '';
     this.saveMessage.set('تم حفظ الجلسة.');
     this.readerPanel.set(null);
@@ -365,11 +429,15 @@ export class AppComponent implements OnInit {
     this.closeMenu();
   }
 
-  protected deleteHistory(history: ReadingHistory, event: MouseEvent): void {
+  protected async deleteHistory(history: ReadingHistory, event: MouseEvent): Promise<void> {
     event.stopPropagation();
-    const updated = this.histories().filter((item) => item.id !== history.id);
-    this.histories.set(updated);
-    localStorage.setItem(STORAGE_HISTORY_KEY, JSON.stringify(updated));
+    const user = this.user();
+    if (user) {
+      await this.supabase.deleteReading(history.id);
+    } else {
+      localStorage.setItem(STORAGE_HISTORY_KEY, JSON.stringify(this.histories().filter((item) => item.id !== history.id)));
+    }
+    this.histories.set(this.histories().filter((item) => item.id !== history.id));
   }
 
   protected referenceFor(verse: QuranVerse | undefined): string {
@@ -393,8 +461,9 @@ export class AppComponent implements OnInit {
     return panel.id;
   }
 
-  protected setAuthMode(_mode: 'login' | 'register'): void {
-    // no-op: auth removed
+  protected setAuthMode(mode: 'login' | 'register'): void {
+    this.authMode.set(mode);
+    this.authError.set('');
   }
 
   protected openScreen(screen: AppScreen): void {
@@ -429,7 +498,7 @@ export class AppComponent implements OnInit {
     this.menuOpen.set(false);
   }
 
-  private loadPreferencesAndHistory(): void {
+  private loadLocalPreferencesAndHistory(): void {
     const rawPrefs = localStorage.getItem(STORAGE_PREFERENCES_KEY);
     if (rawPrefs) {
       try {
@@ -449,8 +518,37 @@ export class AppComponent implements OnInit {
     }
   }
 
-  private savePreferences(): void {
-    localStorage.setItem(STORAGE_PREFERENCES_KEY, JSON.stringify(this.scope()));
+  private async loadRemotePreferencesAndHistory(userId: string): Promise<void> {
+    const { data: prefs } = await this.supabase.getPreferences(userId);
+    if (prefs) {
+      this.scope.set(this.normalizeScope({
+        mode: prefs.mode as ScopeMode,
+        fromJuz: prefs.from_juz,
+        toJuz: prefs.to_juz,
+        fromSurah: prefs.from_surah,
+        toSurah: prefs.to_surah,
+        ayah: prefs.ayah,
+      }));
+    }
+    const { data: readings } = await this.supabase.getReadingHistory(userId);
+    if (readings) {
+      this.histories.set(readings.map(r => ({
+        id: r.id,
+        name: r.name,
+        startIndex: r.start_index,
+        endIndex: r.end_index,
+        createdAt: r.created_at,
+      })));
+    }
+  }
+
+  private async savePreferences(): Promise<void> {
+    const scope = this.scope();
+    localStorage.setItem(STORAGE_PREFERENCES_KEY, JSON.stringify(scope));
+    const user = this.user();
+    if (user) {
+      await this.supabase.upsertPreferences(user.id, scope);
+    }
   }
 
   private openAt(index: number, endIndex?: number): void {

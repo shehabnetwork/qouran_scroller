@@ -34,7 +34,7 @@ body {
   }
 
   .top-bar {
-    @apply fixed inset-x-0 top-0 z-10 grid min-h-[76px] grid-cols-[48px_1fr_auto] items-center gap-3 border-b border-slate-200/80 bg-white/85 px-6 py-3 shadow-sm backdrop-blur-xl;
+    @apply fixed inset-x-0 top-0 z-10 grid min-h-[76px] grid-cols-[48px_1fr_auto_auto] items-center gap-3 border-b border-slate-200/80 bg-white/85 px-6 py-3 shadow-sm backdrop-blur-xl;
   }
 
   .menu-button,
@@ -426,7 +426,7 @@ body {
     }
 
     .top-bar {
-      @apply min-h-[70px] grid-cols-[44px_1fr] px-4;
+      @apply min-h-[70px] grid-cols-[44px_1fr_auto_auto] px-4;
     }
 
     .source-link {
@@ -499,5 +499,29 @@ body {
     .ayah-marker {
       @apply mx-1.5 size-7 text-xs;
     }
+  }
+
+  .menu-divider {
+    @apply h-px bg-slate-200 my-1 mx-1;
+  }
+
+  .menu-user-info {
+    @apply flex items-center gap-3 rounded-2xl bg-teal-50 px-4 py-3 text-sm font-semibold text-teal-900;
+  }
+
+  .menu-user-info i {
+    @apply text-lg text-teal-700;
+  }
+
+  .auth-switch {
+    @apply flex items-center gap-2 text-sm text-slate-500;
+  }
+
+  .user-avatar-button {
+    @apply grid size-10 place-items-center rounded-full border-2 border-teal-600 bg-teal-50 text-xl text-teal-700 transition hover:bg-teal-100;
+  }
+
+  .sign-in-topbar-button {
+    @apply min-h-9 rounded-xl px-3 text-sm;
   }
 }
