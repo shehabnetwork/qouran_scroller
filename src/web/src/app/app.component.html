@@ -159,7 +159,7 @@
         <div class="save-inline-row">
           <label>
             اسم الجلسة
-            <input [(ngModel)]="historyName" placeholder="مثال: ورد الفجر" />
+            <input [(ngModel)]="historyName" [placeholder]="defaultSessionName()" />
           </label>
           <button type="button" class="primary" (click)="saveCurrentReading()">
             <i class="bi bi-bookmark-check" aria-hidden="true"></i>
@@ -347,7 +347,7 @@
 
       <label>
         اسم الجلسة
-        <input [(ngModel)]="historyName" placeholder="مثال: ورد الفجر" />
+        <input [(ngModel)]="historyName" [placeholder]="defaultSessionName()" />
       </label>
 
       <button type="button" class="primary" (click)="saveCurrentReading()">

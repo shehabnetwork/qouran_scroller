@@ -46,6 +46,7 @@ const DEFAULT_SCOPE: ScopePreference = {
 
 const STORAGE_PREFERENCES_KEY = 'quran-scroll-preferences';
 const STORAGE_HISTORY_KEY = 'quran-scroll-history';
+const DEFAULT_SESSION_WORD_COUNT = 4;
 
 // Precomputed panel boundaries. A panel = contiguous verses sharing the same (surah, quarter).
 const PANEL_BOUNDARIES: { fromIndex: number; toIndex: number }[] = (() => {
@@ -107,6 +108,7 @@ export class AppComponent implements OnInit {
   };
 
   protected historyName = '';
+  private suggestedHistoryName = '';
   private rangeEndPinned = false;
   private sessionStarted = false;
   private loadingPrevious = false;
@@ -148,6 +150,7 @@ export class AppComponent implements OnInit {
   protected readonly latestVerse = computed(() => this.visibleVerses().at(-1) ?? this.openingVerse());
   protected readonly rangeStartVerse = computed(() => QURAN_VERSES[this.selectedRangeStartIndex()]);
   protected readonly rangeEndVerse = computed(() => QURAN_VERSES[this.selectedRangeEndIndex()]);
+  protected readonly defaultSessionName = computed(() => this.sessionNameFor(this.rangeStartVerse()));
 
   protected readonly selectedSurah = computed(() => this.findSurah(this.scope().fromSurah));
   protected readonly maxAyahForSelectedSurah = computed(() => this.selectedSurah()?.ayahCount ?? 1);
@@ -328,6 +331,7 @@ export class AppComponent implements OnInit {
       this.rangeEndPinned = true;
     }
     this.selectedVerseIndex.set(null);
+    this.syncSuggestedHistoryName();
   }
 
   protected setRangeEndHere(verse: QuranVerse, event?: MouseEvent): void {
@@ -375,6 +379,7 @@ export class AppComponent implements OnInit {
       if (this.selectedRangeEndIndex() < nextIndex) {
         this.selectedRangeEndIndex.set(nextIndex);
       }
+      this.syncSuggestedHistoryName();
       return;
     }
 
@@ -388,7 +393,7 @@ export class AppComponent implements OnInit {
   protected async saveCurrentReading(): Promise<void> {
     const opening = this.rangeStartVerse();
     const latest = this.rangeEndVerse();
-    const fallbackName = `${this.referenceFor(opening)} إلى ${this.referenceFor(latest)}`;
+    const fallbackName = this.defaultSessionName();
     const name = this.historyName.trim() || fallbackName;
 
     const user = this.user();
@@ -449,6 +454,21 @@ export class AppComponent implements OnInit {
     return `${surah?.name ?? verse.surah} ${verse.ayah}`;
   }
 
+  protected sessionNameFor(verse: QuranVerse | undefined): string {
+    if (!verse) {
+      return '';
+    }
+
+    const surah = this.findSurah(verse.surah);
+    const firstWords = this.plainArabicText(verse.text)
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, DEFAULT_SESSION_WORD_COUNT)
+      .join(' ');
+
+    return `${surah?.name ?? verse.surah}: ${firstWords}`;
+  }
+
   protected surahFor(verse: QuranVerse): SurahInfo | undefined {
     return this.findSurah(verse.surah);
   }
@@ -471,6 +491,10 @@ export class AppComponent implements OnInit {
       this.readerScrollY = window.scrollY;
     }
 
+    if (screen === 'save') {
+      this.syncSuggestedHistoryName();
+    }
+
     this.currentScreen.set(screen);
     this.closeMenu();
 
@@ -487,7 +511,11 @@ export class AppComponent implements OnInit {
   }
 
   protected toggleReaderPanel(panel: Exclude<ReaderPanel, null>): void {
-    this.readerPanel.set(this.readerPanel() === panel ? null : panel);
+    const nextPanel = this.readerPanel() === panel ? null : panel;
+    if (nextPanel === 'range') {
+      this.syncSuggestedHistoryName();
+    }
+    this.readerPanel.set(nextPanel);
   }
 
   protected toggleMenu(): void {
@@ -605,6 +633,25 @@ export class AppComponent implements OnInit {
 
   private rangeBoundaryVerse(boundary: 'start' | 'end'): QuranVerse | undefined {
     return boundary === 'start' ? this.rangeStartVerse() : this.rangeEndVerse();
+  }
+
+  private syncSuggestedHistoryName(): void {
+    const nextSuggestedName = this.defaultSessionName();
+    if (!this.historyName.trim() || this.historyName === this.suggestedHistoryName) {
+      this.historyName = nextSuggestedName;
+    }
+    this.suggestedHistoryName = nextSuggestedName;
+  }
+
+  private plainArabicText(text: string): string {
+    return text
+      .replace(/\u0671/g, 'ا')
+      .replace(/\u0670/g, 'ا')
+      .replace(/\u0640/g, '')
+      .replace(/[\u064B-\u065F\u06D6-\u06ED]/g, '')
+      .replace(/[^\p{Script=Arabic}\s]/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   private indexForSurahAyah(surahNumber: number, ayahNumber: number): number {
