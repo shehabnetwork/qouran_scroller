@@ -46,7 +46,11 @@ const DEFAULT_SCOPE: ScopePreference = {
 
 const STORAGE_PREFERENCES_KEY = 'quran-scroll-preferences';
 const STORAGE_HISTORY_KEY = 'quran-scroll-history';
+const STORAGE_FONT_SCALE_KEY = 'quran-scroll-font-scale';
 const DEFAULT_SESSION_WORD_COUNT = 4;
+const MIN_QURAN_FONT_SCALE = 0.8;
+const MAX_QURAN_FONT_SCALE = 1.4;
+const QURAN_FONT_SCALE_STEP = 0.1;
 
 // Precomputed panel boundaries. A panel = contiguous verses sharing the same (surah, quarter).
 const PANEL_BOUNDARIES: { fromIndex: number; toIndex: number }[] = (() => {
@@ -95,6 +99,9 @@ export class AppComponent implements OnInit {
   protected readonly authMode = signal<'login' | 'register'>('login');
   protected readonly authError = signal('');
   protected readonly authLoading = signal(false);
+  protected readonly quranFontScale = signal(1);
+  protected readonly canDecreaseQuranFont = computed(() => this.quranFontScale() > MIN_QURAN_FONT_SCALE);
+  protected readonly canIncreaseQuranFont = computed(() => this.quranFontScale() < MAX_QURAN_FONT_SCALE);
 
   protected jumpForm = {
     surah: 1,
@@ -190,11 +197,6 @@ export class AppComponent implements OnInit {
   protected onScroll(): void {
     if (this.currentScreen() !== 'reader') {
       return;
-    }
-
-    const nearTop = window.scrollY < 300;
-    if (nearTop) {
-      this.loadPrevious(true);
     }
 
     const nearBottom = window.innerHeight + window.scrollY > document.body.offsetHeight - 900;
@@ -294,6 +296,8 @@ export class AppComponent implements OnInit {
     queueMicrotask(() => {
       if (preserveScroll) {
         window.scrollTo({ top: window.scrollY + document.body.scrollHeight - oldHeight, behavior: 'auto' });
+      } else {
+        this.scrollToVerse(prevPanel.fromIndex, 'smooth');
       }
       this.loadingPrevious = false;
     });
@@ -314,9 +318,13 @@ export class AppComponent implements OnInit {
 
   protected goToJumpVerse(): void {
     this.openAt(this.indexForSurahAyah(this.jumpForm.surah, this.jumpForm.ayah));
-    this.currentScreen.set('reader');
-    this.readerPanel.set(null);
     this.closeMenu();
+  }
+
+  protected goToSelectedRange(): void {
+    const start = this.selectedRangeStartIndex();
+    this.ensureVerseRendered(start);
+    this.scrollToVerse(start, 'smooth');
   }
 
   protected selectVerse(verse: QuranVerse): void {
@@ -338,6 +346,7 @@ export class AppComponent implements OnInit {
     event?.stopPropagation();
     if (verse.index < this.selectedRangeStartIndex()) {
       this.selectedRangeStartIndex.set(verse.index);
+      this.syncSuggestedHistoryName();
     }
     this.selectedRangeEndIndex.set(verse.index);
     this.rangeEndPinned = true;
@@ -379,15 +388,24 @@ export class AppComponent implements OnInit {
       if (this.selectedRangeEndIndex() < nextIndex) {
         this.selectedRangeEndIndex.set(nextIndex);
       }
+      this.ensureVerseRendered(nextIndex, this.selectedRangeEndIndex());
       this.syncSuggestedHistoryName();
+      this.scrollToVerse(nextIndex, 'smooth');
       return;
     }
 
+    let rangeStartChanged = false;
     if (nextIndex < this.selectedRangeStartIndex()) {
       this.selectedRangeStartIndex.set(nextIndex);
+      rangeStartChanged = true;
     }
     this.selectedRangeEndIndex.set(nextIndex);
     this.rangeEndPinned = true;
+    this.ensureVerseRendered(this.selectedRangeStartIndex(), nextIndex);
+    if (rangeStartChanged) {
+      this.syncSuggestedHistoryName();
+      this.scrollToVerse(nextIndex, 'smooth');
+    }
   }
 
   protected async saveCurrentReading(): Promise<void> {
@@ -430,12 +448,16 @@ export class AppComponent implements OnInit {
   protected resumeHistory(history: ReadingHistory): void {
     this.openAt(history.startIndex, history.endIndex);
     this.rangeEndPinned = true;
-    this.currentScreen.set('reader');
     this.closeMenu();
   }
 
   protected async deleteHistory(history: ReadingHistory, event: MouseEvent): Promise<void> {
     event.stopPropagation();
+    const confirmed = window.confirm(`هل تريد حذف جلسة "${history.name}"؟`);
+    if (!confirmed) {
+      return;
+    }
+
     const user = this.user();
     if (user) {
       await this.supabase.deleteReading(history.id);
@@ -452,6 +474,10 @@ export class AppComponent implements OnInit {
 
     const surah = this.findSurah(verse.surah);
     return `${surah?.name ?? verse.surah} ${verse.ayah}`;
+  }
+
+  protected verseCountFor(history: ReadingHistory): number {
+    return Math.max(0, history.endIndex - history.startIndex + 1);
   }
 
   protected sessionNameFor(verse: QuranVerse | undefined): string {
@@ -518,6 +544,14 @@ export class AppComponent implements OnInit {
     this.readerPanel.set(nextPanel);
   }
 
+  protected decreaseQuranFont(): void {
+    this.setQuranFontScale(this.quranFontScale() - QURAN_FONT_SCALE_STEP);
+  }
+
+  protected increaseQuranFont(): void {
+    this.setQuranFontScale(this.quranFontScale() + QURAN_FONT_SCALE_STEP);
+  }
+
   protected toggleMenu(): void {
     this.menuOpen.set(!this.menuOpen());
   }
@@ -532,6 +566,11 @@ export class AppComponent implements OnInit {
       try {
         this.scope.set(this.normalizeScope(JSON.parse(rawPrefs)));
       } catch { }
+    }
+
+    const rawFontScale = localStorage.getItem(STORAGE_FONT_SCALE_KEY);
+    if (rawFontScale) {
+      this.setQuranFontScale(Number(rawFontScale), false);
     }
 
     if (!this.sessionStarted) {
@@ -581,28 +620,24 @@ export class AppComponent implements OnInit {
 
   private openAt(index: number, endIndex?: number): void {
     const normalizedIndex = Math.max(0, Math.min(index, QURAN_VERSES.length - 1));
+    const normalizedEndIndex = endIndex !== undefined
+      ? Math.max(normalizedIndex, Math.min(endIndex, QURAN_VERSES.length - 1))
+      : undefined;
     const startPanel = this.panelFor(normalizedIndex);
-    const endPanel = endIndex !== undefined
-      ? this.panelFor(Math.max(normalizedIndex, Math.min(endIndex, QURAN_VERSES.length - 1)))
-      : startPanel;
+    const endPanel = normalizedEndIndex !== undefined ? this.panelFor(normalizedEndIndex) : startPanel;
 
     this.sessionStarted = true;
     this.readerScrollY = 0;
     this.startIndex.set(startPanel.fromIndex);
     this.visibleCount.set(endPanel.toIndex - startPanel.fromIndex + 1);
     this.selectedRangeStartIndex.set(normalizedIndex);
-    this.selectedRangeEndIndex.set(endPanel.toIndex);
+    this.selectedRangeEndIndex.set(normalizedEndIndex ?? endPanel.toIndex);
     this.selectedVerseIndex.set(null);
+    this.currentScreen.set('reader');
+    this.readerPanel.set(null);
     this.rangeEndPinned = false;
     this.syncJumpFormToVerse(QURAN_VERSES[normalizedIndex]);
-    queueMicrotask(() => {
-      const el = document.querySelector('.range-start');
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      } else {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-    });
+    this.scrollToVerse(normalizedIndex, 'smooth');
   }
 
   private panelFor(verseIndex: number): { fromIndex: number; toIndex: number } {
@@ -617,22 +652,66 @@ export class AppComponent implements OnInit {
 
   private showReader(): void {
     this.currentScreen.set('reader');
+    this.ensureVerseRendered(this.selectedRangeStartIndex(), this.selectedRangeEndIndex());
     this.restoreReaderScroll();
   }
 
   private restoreReaderScroll(): void {
-    queueMicrotask(() => {
-      const rangeStart = document.querySelector('.range-start');
-      if (rangeStart) {
-        rangeStart.scrollIntoView({ behavior: 'auto', block: 'start' });
-      } else {
-        window.scrollTo({ top: this.readerScrollY, behavior: 'auto' });
-      }
-    });
+    this.scrollToVerse(this.selectedRangeStartIndex(), 'auto', this.readerScrollY);
   }
 
   private rangeBoundaryVerse(boundary: 'start' | 'end'): QuranVerse | undefined {
     return boundary === 'start' ? this.rangeStartVerse() : this.rangeEndVerse();
+  }
+
+  private setQuranFontScale(scale: number, persist = true): void {
+    const normalized = Math.round(this.clamp(scale, MIN_QURAN_FONT_SCALE, MAX_QURAN_FONT_SCALE) * 10) / 10;
+    this.quranFontScale.set(normalized);
+    if (persist) {
+      localStorage.setItem(STORAGE_FONT_SCALE_KEY, String(normalized));
+    }
+  }
+
+  private ensureVerseRendered(index: number, endIndex = index): void {
+    const currentStart = this.startIndex();
+    const currentEnd = currentStart + this.visibleCount() - 1;
+    if (index >= currentStart && index <= currentEnd && endIndex <= currentEnd) {
+      return;
+    }
+
+    const normalizedIndex = Math.max(0, Math.min(index, QURAN_VERSES.length - 1));
+    const normalizedEndIndex = Math.max(normalizedIndex, Math.min(endIndex, QURAN_VERSES.length - 1));
+    const startPanel = this.panelFor(normalizedIndex);
+    const endPanel = this.panelFor(normalizedEndIndex);
+
+    this.startIndex.set(startPanel.fromIndex);
+    this.visibleCount.set(endPanel.toIndex - startPanel.fromIndex + 1);
+  }
+
+  private scrollToVerse(index: number, behavior: ScrollBehavior, fallbackTop = 0): void {
+    const normalizedIndex = Math.max(0, Math.min(index, QURAN_VERSES.length - 1));
+
+    queueMicrotask(() => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const target = document.querySelector<HTMLElement>(`[data-verse-index="${normalizedIndex}"]`);
+          if (!target) {
+            window.scrollTo({ top: fallbackTop, behavior });
+            return;
+          }
+
+          const rect = target.getBoundingClientRect();
+          const top = Math.max(0, window.scrollY + rect.top - this.readerScrollOffset());
+          window.scrollTo({ top, behavior });
+        });
+      });
+    });
+  }
+
+  private readerScrollOffset(): number {
+    const topBar = document.querySelector<HTMLElement>('.top-bar')?.getBoundingClientRect().height ?? 0;
+    const readerHeader = document.querySelector<HTMLElement>('.reader-header')?.getBoundingClientRect().height ?? 0;
+    return topBar + readerHeader + 16;
   }
 
   private syncSuggestedHistoryName(): void {

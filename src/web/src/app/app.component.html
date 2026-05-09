@@ -1,4 +1,4 @@
-<main class="app-shell" dir="rtl">
+<main class="app-shell" dir="rtl" [style.--quran-font-scale]="quranFontScale()">
   <header class="top-bar">
     <button type="button" class="menu-button" (click)="toggleMenu()" aria-label="القائمة">
       <i class="bi bi-list" aria-hidden="true"></i>
@@ -99,6 +99,22 @@
           <span>النطاق</span>
         </button>
 
+        <button type="button" class="secondary" (click)="goToSelectedRange()">
+          <i class="bi bi-bullseye" aria-hidden="true"></i>
+          <span>بداية النطاق</span>
+        </button>
+
+        <div class="font-size-controls" aria-label="حجم الخط">
+          <button type="button" class="secondary icon-size-button" (click)="decreaseQuranFont()"
+            [disabled]="!canDecreaseQuranFont()" aria-label="تصغير خط الآيات">
+            <i class="bi bi-dash-lg" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="secondary icon-size-button" (click)="increaseQuranFont()"
+            [disabled]="!canIncreaseQuranFont()" aria-label="تكبير خط الآيات">
+            <i class="bi bi-plus-lg" aria-hidden="true"></i>
+          </button>
+        </div>
+
         <button type="button" class="secondary" (click)="openRandomVerse()">
           <i class="bi bi-shuffle" aria-hidden="true"></i>
           <span>جلسة جديدة</span>
@@ -170,6 +186,11 @@
       </div>
     </header>
 
+    <button type="button" class="load-previous" *ngIf="startIndex() > 0" (click)="loadPrevious()">
+      <i class="bi bi-chevron-up" aria-hidden="true"></i>
+      <span>الانتقال إلى الآيات السابقة</span>
+    </button>
+
     <article class="verse-list">
       <section class="verse-panel" *ngFor="let panel of versePanels(); trackBy: trackPanel"
         [class.opening]="panel.startsAtOpening">
@@ -182,7 +203,8 @@
           <ng-container *ngFor="let verse of panel.verses; trackBy: trackVerse">
             <span class="verse-unit" role="button" tabindex="0" [class.active]="selectedVerseIndex() === verse.index"
               [class.range-start]="isRangeStart(verse)" [class.range-end]="isRangeEnd(verse)"
-              [class.in-selected-range]="isInsideSelectedRange(verse)" (click)="selectVerse(verse)"
+              [class.in-selected-range]="isInsideSelectedRange(verse)" [attr.data-verse-index]="verse.index"
+              (click)="selectVerse(verse)"
               (keydown.enter)="selectVerse(verse)">
               <span class="verse-text">{{ verse.text }}</span>
               <span class="ayah-marker" [attr.aria-label]="'آية ' + verse.ayah">{{ verse.ayah }}</span>
@@ -374,10 +396,13 @@
 
       <div class="history-list" *ngIf="histories().length">
         <div type="button" class="history-item" *ngFor="let history of histories()">
-          <div>
-            <span (click)="resumeHistory(history)">{{ history.name }}</span>
-            <small>{{ verses[history.startIndex].surah }}:{{ verses[history.startIndex].ayah }} - {{
-              verses[history.endIndex].surah }}:{{ verses[history.endIndex].ayah }}</small>
+          <div class="history-content">
+            <span class="history-title" (click)="resumeHistory(history)">{{ history.name }}</span>
+            <small class="history-meta">
+              <span>{{ verses[history.startIndex].surah }}:{{ verses[history.startIndex].ayah }} - {{
+                verses[history.endIndex].surah }}:{{ verses[history.endIndex].ayah }}</span>
+              <span class="verse-count-pill">{{ verseCountFor(history) }} آية</span>
+            </small>
           </div>
           <button class="delete" (click)="deleteHistory(history, $event)">
             <i class="bi bi-trash3" aria-hidden="true"></i>
@@ -400,7 +425,7 @@
         <h1>{{ authMode() === 'login' ? 'تسجيل الدخول' : 'إنشاء حساب' }}</h1>
       </div>
 
-      <form (ngSubmit)="submitAuth()">
+      <form class="auth-form" (ngSubmit)="submitAuth()">
         <label *ngIf="authMode() === 'register'">
           الاسم
           <input type="text" [(ngModel)]="authForm.name" name="authName" placeholder="اختياري" />
@@ -414,7 +439,7 @@
           <input type="password" [(ngModel)]="authForm.password" name="authPassword" required minlength="6" />
         </label>
         <p class="message" *ngIf="authError()">{{ authError() }}</p>
-        <button type="submit" class="primary" [disabled]="authLoading()">
+        <button type="submit" class="primary auth-submit-button" [disabled]="authLoading()">
           <i class="bi bi-person-check" aria-hidden="true"></i>
           <span>{{ authMode() === 'login' ? 'دخول' : 'إنشاء حساب' }}</span>
         </button>
@@ -424,7 +449,18 @@
 
       <button type="button" class="secondary google-redirect-button" (click)="startGoogleRedirect()"
         [disabled]="authLoading()">
-        <i class="bi bi-google" aria-hidden="true"></i>
+        <span class="google-mark" aria-hidden="true">
+          <svg viewBox="0 0 18 18" focusable="false">
+            <path fill="#4285f4"
+              d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z" />
+            <path fill="#34a853"
+              d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.8.54-1.84.86-3.04.86a5.35 5.35 0 0 1-5.04-3.7H.94v2.34A9 9 0 0 0 9 18z" />
+            <path fill="#fbbc05"
+              d="M3.96 10.72A5.41 5.41 0 0 1 3.68 9c0-.6.1-1.18.28-1.72V4.94H.94A9 9 0 0 0 0 9c0 1.45.34 2.82.94 4.06l3.02-2.34z" />
+            <path fill="#ea4335"
+              d="M9 3.58c1.32 0 2.5.46 3.44 1.35l2.58-2.58A8.65 8.65 0 0 0 9 0 9 9 0 0 0 .94 4.94l3.02 2.34A5.35 5.35 0 0 1 9 3.58z" />
+          </svg>
+        </span>
         <span>متابعة مع Google</span>
       </button>
 
