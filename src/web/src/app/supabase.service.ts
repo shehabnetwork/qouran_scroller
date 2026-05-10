@@ -59,7 +59,7 @@ export class SupabaseService {
     signInWithGoogle() {
         return this.client.auth.signInWithOAuth({
             provider: 'google',
-            options: { redirectTo: window.location.origin },
+            options: { redirectTo: environment.oauthRedirectUrl },
         });
     }
 
