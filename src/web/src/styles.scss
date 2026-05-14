@@ -577,6 +577,30 @@ body {
     @apply grid size-10 place-items-center rounded-full border-2 border-teal-600 bg-teal-50 text-xl text-teal-700 transition hover:bg-teal-100;
   }
 
+  .record-view-screen {
+    @apply grid gap-6 w-[min(920px,calc(100%_-_36px))];
+  }
+
+  .record-view-header {
+    @apply grid gap-4 rounded-3xl border border-white/80 bg-white/85 p-6 shadow-soft backdrop-blur-xl;
+  }
+
+  .record-view-meta {
+    @apply flex flex-wrap items-center gap-3 text-sm font-semibold text-slate-500;
+  }
+
+  .record-view-actions {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .record-nav {
+    @apply flex items-center justify-between gap-3 pb-4;
+  }
+
+  .record-nav button {
+    @apply min-h-10 rounded-2xl px-5 text-sm;
+  }
+
   .sign-in-topbar-button {
     @apply min-h-9 rounded-xl px-3 text-sm;
   }

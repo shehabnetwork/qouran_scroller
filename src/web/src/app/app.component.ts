@@ -6,7 +6,7 @@ import { JUZ_BOUNDARIES, QURAN_SOURCE, QURAN_VERSES, QuranVerse, SURAHS, SurahIn
 import { SupabaseService } from './supabase.service';
 
 type ScopeMode = 'all' | 'juz' | 'surah' | 'ayah';
-type AppScreen = 'reader' | 'range' | 'save' | 'history' | 'auth';
+type AppScreen = 'reader' | 'range' | 'save' | 'history' | 'record-view' | 'auth';
 type ReaderPanel = 'jump' | 'range' | null;
 
 interface ScopePreference {
@@ -102,6 +102,40 @@ export class AppComponent implements OnInit {
   protected readonly quranFontScale = signal(1);
   protected readonly canDecreaseQuranFont = computed(() => this.quranFontScale() > MIN_QURAN_FONT_SCALE);
   protected readonly canIncreaseQuranFont = computed(() => this.quranFontScale() < MAX_QURAN_FONT_SCALE);
+  protected readonly selectedHistoryIndex = signal<number>(-1);
+  protected readonly selectedHistory = computed<ReadingHistory | null>(
+    () => this.histories()[this.selectedHistoryIndex()] ?? null,
+  );
+  protected readonly canGoToPrevRecord = computed(
+    () => this.selectedHistoryIndex() < this.histories().length - 1,
+  );
+  protected readonly canGoToNextRecord = computed(
+    () => this.selectedHistoryIndex() > 0,
+  );
+  protected readonly recordVersePanels = computed<VersePanel[]>(() => {
+    const h = this.selectedHistory();
+    if (!h) return [];
+    const panels: VersePanel[] = [];
+    for (const verse of QURAN_VERSES.slice(h.startIndex, h.endIndex + 1)) {
+      const prev = panels.at(-1);
+      const prevVerse = prev?.verses.at(-1);
+      const startsPanel = !prev || !prevVerse
+        || prevVerse.surah !== verse.surah || prevVerse.quarter !== verse.quarter;
+      if (startsPanel) {
+        panels.push({
+          id: `rv-${verse.surah}-${verse.ayah}-${verse.quarter}`,
+          surah: this.findSurah(verse.surah),
+          juz: verse.juz,
+          quarter: verse.quarter,
+          startsAtOpening: false,
+          verses: [verse],
+        });
+      } else {
+        prev!.verses.push(verse);
+      }
+    }
+    return panels;
+  });
 
   protected jumpForm = {
     surah: 1,
@@ -445,10 +479,33 @@ export class AppComponent implements OnInit {
     this.showReader();
   }
 
-  protected resumeHistory(history: ReadingHistory): void {
-    this.openAt(history.startIndex, history.endIndex);
+  protected openHistoryRecord(history: ReadingHistory, index: number): void {
+    this.selectedHistoryIndex.set(index);
+    this.openScreen('record-view');
+  }
+
+  protected openRecordInReader(): void {
+    const h = this.selectedHistory();
+    if (!h) return;
+    this.openAt(h.startIndex, h.endIndex);
     this.rangeEndPinned = true;
     this.closeMenu();
+  }
+
+  protected prevRecord(): void {
+    const next = this.selectedHistoryIndex() + 1;
+    if (next < this.histories().length) {
+      this.selectedHistoryIndex.set(next);
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    }
+  }
+
+  protected nextRecord(): void {
+    const next = this.selectedHistoryIndex() - 1;
+    if (next >= 0) {
+      this.selectedHistoryIndex.set(next);
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    }
   }
 
   protected async deleteHistory(history: ReadingHistory, event: MouseEvent): Promise<void> {

@@ -395,9 +395,9 @@
       <p class="empty-state" *ngIf="!histories().length">لا توجد جلسات محفوظة بعد.</p>
 
       <div class="history-list" *ngIf="histories().length">
-        <div type="button" class="history-item" *ngFor="let history of histories()">
+        <div type="button" class="history-item" *ngFor="let history of histories(); let i = index">
           <div class="history-content">
-            <span class="history-title" (click)="resumeHistory(history)">{{ history.name }}</span>
+            <span class="history-title" (click)="openHistoryRecord(history, i)">{{ history.name }}</span>
             <small class="history-meta">
               <span>{{ verses[history.startIndex].surah }}:{{ verses[history.startIndex].ayah }} - {{
                 verses[history.endIndex].surah }}:{{ verses[history.endIndex].ayah }}</span>
@@ -411,6 +411,62 @@
         </div>
       </div>
     </div>
+  </section>
+
+  <section class="screen record-view-screen" *ngIf="currentScreen() === 'record-view' && selectedHistory() as rec">
+    <div class="record-view-header">
+      <button type="button" class="back-button" (click)="openScreen('history')">
+        <i class="bi bi-arrow-right" aria-hidden="true"></i>
+        <span>السجل</span>
+      </button>
+
+      <div class="page-title">
+        <span>جلسة محفوظة</span>
+        <h1>{{ rec.name }}</h1>
+      </div>
+
+      <div class="record-view-meta">
+        <span>{{ verses[rec.startIndex].surah }}:{{ verses[rec.startIndex].ayah }} — {{
+          verses[rec.endIndex].surah }}:{{ verses[rec.endIndex].ayah }}</span>
+        <span class="verse-count-pill">{{ verseCountFor(rec) }} آية</span>
+      </div>
+
+      <div class="record-view-actions">
+        <button type="button" class="secondary" (click)="openRecordInReader()">
+          <i class="bi bi-book-half" aria-hidden="true"></i>
+          <span>فتح في القراءة</span>
+        </button>
+      </div>
+    </div>
+
+    <article class="verse-list record-verse-list">
+      <section class="verse-panel" *ngFor="let panel of recordVersePanels(); trackBy: trackPanel">
+        <div class="verse-meta">
+          <span class="side-badge">جزء {{ panel.juz }}</span>
+          <strong class="surah-title">{{ panel.surah?.name }}</strong>
+          <span class="side-badge">ربع {{ panel.quarter }}</span>
+        </div>
+        <p class="quran-flow">
+          <ng-container *ngFor="let verse of panel.verses; trackBy: trackVerse">
+            <span class="verse-unit" [attr.data-verse-index]="verse.index">
+              <span class="verse-text">{{ verse.text }}</span>
+              <span class="ayah-marker" [attr.aria-label]="'آية ' + verse.ayah">{{ verse.ayah }}</span>
+            </span>
+          </ng-container>
+        </p>
+      </section>
+    </article>
+
+    <nav class="record-nav">
+      <button type="button" class="secondary" (click)="prevRecord()" [disabled]="!canGoToPrevRecord()">
+        <i class="bi bi-chevron-right" aria-hidden="true"></i>
+        <span>السابق</span>
+      </button>
+      <button type="button" class="secondary" (click)="nextRecord()" [disabled]="!canGoToNextRecord()">
+        <span>التالي</span>
+        <i class="bi bi-chevron-left" aria-hidden="true"></i>
+      </button>
+    </nav>
   </section>
 
   <section class="screen narrow-screen" *ngIf="currentScreen() === 'auth'">
