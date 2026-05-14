@@ -581,6 +581,10 @@ body {
     @apply grid gap-6 w-[min(920px,calc(100%_-_36px))];
   }
 
+  .record-verse-list .verse-unit {
+    @apply text-slate-950;
+  }
+
   .record-view-header {
     @apply grid gap-4 rounded-3xl border border-white/80 bg-white/85 p-6 shadow-soft backdrop-blur-xl;
   }
