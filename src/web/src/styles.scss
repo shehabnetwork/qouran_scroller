@@ -217,12 +217,42 @@ body {
     content: "";
   }
 
+  .auth-form {
+    @apply grid gap-4;
+  }
+
+  .auth-form label {
+    @apply gap-2.5 leading-normal;
+  }
+
+  .auth-form input {
+    @apply min-h-[3.25rem] rounded-[1.15rem] px-5 py-3 leading-normal;
+  }
+
+  .auth-submit-button {
+    @apply mt-0.5 min-h-11 justify-self-end rounded-[1.15rem] px-6 py-2.5 leading-none;
+  }
+
   .google-auth {
     @apply grid min-h-12 justify-items-center;
   }
 
   .google-redirect-button {
-    @apply w-[min(320px,100%)] bg-white;
+    @apply mx-auto grid min-h-11 w-[min(320px,100%)] grid-cols-[20px_1fr_20px] items-center justify-self-center rounded border border-[#dadce0] bg-white px-3 py-0 text-sm font-semibold text-[#3c4043] shadow-none hover:bg-[#f8fafd] hover:shadow-sm disabled:opacity-60;
+    direction: ltr;
+  }
+
+  .google-redirect-button .google-mark {
+    @apply grid size-5 place-items-center;
+  }
+
+  .google-redirect-button svg {
+    @apply size-[18px];
+  }
+
+  .google-redirect-button span:last-child {
+    @apply justify-self-center text-center;
+    direction: rtl;
   }
 
   .reader-header {
@@ -247,6 +277,14 @@ body {
 
   .reader-actions .secondary {
     @apply min-h-10 rounded-xl px-3 text-sm;
+  }
+
+  .font-size-controls {
+    @apply inline-flex items-center gap-1 rounded-xl border border-teal-100 bg-white/75 p-1 shadow-sm;
+  }
+
+  .font-size-controls .icon-size-button {
+    @apply min-h-8 w-8 rounded-lg px-0 py-0 text-sm shadow-none;
   }
 
   .reader-actions .secondary.active {
@@ -313,7 +351,8 @@ body {
   }
 
   .quran-flow {
-    @apply m-0 mt-4 font-quran text-[2.55rem] leading-[2.18] text-slate-950;
+    @apply m-0 mt-4 font-quran leading-[2.18] text-slate-950;
+    font-size: calc(2.55rem * var(--quran-font-scale, 1));
     text-align: justify;
   }
 
@@ -409,15 +448,31 @@ body {
   }
 
   .history-item {
-    @apply grid min-h-0 w-full grid-cols-[1fr_auto] gap-x-3 gap-y-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-right text-slate-900 shadow-sm hover:shadow-md;
+    @apply grid min-h-0 w-full grid-cols-[1fr_auto] items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-right text-slate-900 shadow-sm hover:shadow-md;
+  }
+
+  .history-content {
+    @apply flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1;
+  }
+
+  .history-title {
+    @apply min-w-[12rem] flex-1 cursor-pointer font-bold text-slate-950;
   }
 
   .history-item small {
     @apply font-normal text-slate-500;
   }
 
+  .history-meta {
+    @apply flex shrink-0 flex-wrap items-center justify-end gap-2;
+  }
+
+  .verse-count-pill {
+    @apply inline-flex min-h-7 items-center justify-center rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-xs font-bold text-teal-800 shadow-sm;
+  }
+
   .history-item .delete {
-    @apply row-span-2 inline-flex items-center gap-1 self-center rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700;
+    @apply inline-flex min-h-8 items-center gap-1 self-center rounded-full bg-rose-50 px-3 py-0.5 text-xs font-bold leading-none text-rose-700;
   }
 
   @media (max-width: 680px) {
@@ -485,7 +540,8 @@ body {
     }
 
     .quran-flow {
-      @apply text-[2rem] leading-[2.05];
+      @apply leading-[2.05];
+      font-size: calc(2rem * var(--quran-font-scale, 1));
     }
 
     .verse-meta {
@@ -519,6 +575,34 @@ body {
 
   .user-avatar-button {
     @apply grid size-10 place-items-center rounded-full border-2 border-teal-600 bg-teal-50 text-xl text-teal-700 transition hover:bg-teal-100;
+  }
+
+  .record-view-screen {
+    @apply grid gap-6 w-[min(920px,calc(100%_-_36px))];
+  }
+
+  .record-verse-list .verse-unit {
+    @apply text-slate-950;
+  }
+
+  .record-view-header {
+    @apply grid gap-4 rounded-3xl border border-white/80 bg-white/85 p-6 shadow-soft backdrop-blur-xl;
+  }
+
+  .record-view-meta {
+    @apply flex flex-wrap items-center gap-3 text-sm font-semibold text-slate-500;
+  }
+
+  .record-view-actions {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .record-nav {
+    @apply flex items-center justify-between gap-3 pb-4;
+  }
+
+  .record-nav button {
+    @apply min-h-10 rounded-2xl px-5 text-sm;
   }
 
   .sign-in-topbar-button {
